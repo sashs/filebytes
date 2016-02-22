@@ -18,5 +18,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import ctypes
 
-def cast_to_void_ptr(data):
-    return ctypes.cast(ctypes.pointer(data), ctypes.c_void_p)
+def get_ptr(data, offset=None):
+    """Returns a void pointer to the data"""
+    ptr = ctypes.cast(ctypes.pointer(data), ctypes.c_void_p)
+
+    if offset:
+        ptr = ctypes.c_void_p(ptr.value + offset)
+
+    return ptr

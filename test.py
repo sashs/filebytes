@@ -3,4 +3,5 @@
 from binformats import elf
 
 efile = elf.ELF('test-binaries/ls-x86')
-print(efile.phdrs)
+for segment in efile.segments:
+    print(segment.type, hex(segment.vaddr))

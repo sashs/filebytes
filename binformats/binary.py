@@ -21,10 +21,10 @@ from struct import pack_into
 
 import ctypes
 
-class DataContainer(object):
+class Container(object):
 
     def __init__(self, **args):
-        setattr = super(DataContainer, self).__setattr__
+        setattr = super(Container, self).__setattr__
         for key, value in args.items():
             setattr(key, value)
 
@@ -58,6 +58,9 @@ class Binary(metaclass=BinaryMeta):
         
         self._bytes = None
         self.__fileName = fileName
+        if not self.__class__.isSupportedFile(fileName):
+            raise BinaryError('Not a suitable filetype')
+
 
     def __initialize__(self):
         self._bytes = self._readFile()
@@ -89,9 +92,16 @@ class Binary(metaclass=BinaryMeta):
         return bs
 
     def assertFileRange(self, value):
-        file_data_pointer = cast_to_void_ptr(self._bytes)
-        assert value >= file_data_pointer.value and value <= (
+        if type(value) == ctypes.c_void_p:
+            value = value.value
+
+        file_data_pointer = get_ptr(self._bytes)
+        assert value >= (file_data_pointer.value) and value <= (
             file_data_pointer.value + len(self._bytes)), 'Pointer not in file range'
+
+    @classmethod
+    def isSupportedFile(cls, fileName):
+        return False
 
 
 class BinaryError(BaseException):
