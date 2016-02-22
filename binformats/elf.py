@@ -18,9 +18,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from ctypes import *
-from ropper.loaders.loader import *
-from ropper.loaders.elf_intern.elf_gen import *
-from ropper.common.error import LoaderError
+from .elf_intern.elf_gen import *
+from .binary import *
 import importlib
 import os
 
@@ -65,20 +64,23 @@ class RelocationData(DataContainer):
     """
 
 
-class ELF(Loader):
+class ELF(Binary):
 
     def __init__(self, filename):
+        super(ELF, self).__init__(filename)
 
         self.ehdr = None
         self.phdrs = []
         self.shdrs = []
         self.symbols = {}
         self.relocations = {}
+        self.sections = []
+        self.segments = []
         self.__elf_module = None
         self.__execSections = None
         self.__dataSections = None
 
-        super(ELF, self).__init__(filename)
+        
 
     def __loadElfModule(self):
         modName = None
@@ -87,7 +89,7 @@ class ELF(Loader):
         elif self._bytes[EI.CLASS] == ELFCLASS.BITS_64:
             modName = 'ropper.loaders.elf_intern.elf64_'
         else:
-            raise LoaderError('Bad architecture')
+            raise BinaryError('Bad architecture')
         self.__elf_module = importlib.import_module(
             modName + str(ELFDATA[self._bytes[EI.DATA]]))
 
@@ -195,58 +197,25 @@ class ELF(Loader):
     def __parse(self, p_bytes):
         p_tmp = c_void_p(p_bytes.value)
         self.assertFileRange(p_tmp.value)
-        self.ehdr = cast(p_tmp, POINTER(self.__elf_module.Ehdr)).contents
+        self.ehdr = self.__elf_module.Ehdr.from_address(p_bytes.value)
 
         self.__parsePhdrs(p_bytes)
         self.__parseShdrs(p_bytes)
         self.__parseSymbols()
         self.__parseRelocations()
 
-    def _parseFile(self):
+    def __initialize__(self):
+        super(ELF, self).__initialize__()
         self.__loadElfModule()
-        self.__parse(self._bytes_p)
+        self.__parse(cast_to_void_ptr(self._bytes))
 
     @property
     def entryPoint(self):
         return self.ehdr.e_entry
 
-    
-    def _getImageBase(self):
+    @property
+    def imageBase(self):
         return self.phdrs[0].struct.p_vaddr - self.phdrs[0].struct.p_offset
-
-
-    def _loadDefaultArch(self):
-        try:
-            return self.__elf_module.getArch( (EM[self.ehdr.e_machine], ELFCLASS[self.ehdr.e_ident[EI.CLASS]]),self.ehdr.e_entry)
-        except:
-            return None
-
-    @property
-    def executableSections(self):
-        if not self.__execSections:
-            self.__execSections = []
-            for phdr in self.phdrs:
-                if phdr.struct.p_flags & PF.EXEC > 0:
-                    p_tmp = c_void_p(self._bytes_p.value + phdr.struct.p_offset)
-                    self.assertFileRange(p_tmp.value)
-                    self.assertFileRange(p_tmp.value+phdr.struct.p_memsz)
-                    execBytes = cast(p_tmp, POINTER(c_ubyte * phdr.struct.p_memsz)).contents
-                    self.__execSections.append(Section(name=str(PT[phdr.struct.p_type]), sectionbytes=execBytes, virtualAddress=phdr.struct.p_vaddr, offset=phdr.struct.p_offset))
-
-        return self.__execSections
-
-    @property
-    def dataSections(self):
-        if not self.__dataSections:
-            self.__dataSections = []
-            for shdr in self.shdrs:
-                if shdr.struct.sh_flags & SHF.ALLOC and not (shdr.struct.sh_flags & SHF.EXECINSTR) and not(shdr.struct.sh_type & SHT.NOBITS):
-                    p_tmp = c_void_p(self._bytes_p.value + shdr.struct.sh_offset)
-                    self.assertFileRange(p_tmp.value)
-                    self.assertFileRange(p_tmp.value + shdr.struct.sh_size)
-                    dataBytes = cast(p_tmp, POINTER(c_ubyte * shdr.struct.sh_size)).contents
-                    self.__dataSections.append(Section(shdr.name, dataBytes, shdr.struct.sh_addr, shdr.struct.sh_offset, shdr.struct))
-        return self.__dataSections
 
     @property
     def codeVA(self):
@@ -258,20 +227,7 @@ class ELF(Loader):
 
     @property
     def type(self):
-        return Type.ELF
-
-    def setASLR(self, enable):
-        raise LoaderError('Not available for elf files')
-
-    def setNX(self, enable):
-        perm = PF.READ | PF.WRITE  if enable else PF.READ | PF.WRITE | PF.EXEC
-        phdrs = self.phdrs
-
-        for phdr in phdrs:
-            if phdr.struct.p_type == PT.GNU_STACK:
-                phdr.struct.p_flags = perm
-
-        self.save()
+        return 'ELF'
 
     def getSection(self, name):
         for shdr in self.shdrs:
@@ -281,8 +237,6 @@ class ELF(Loader):
                 return Section(shdr.name, dataBytes, shdr.struct.sh_addr, shdr.struct.sh_offset)
         raise RopperError('No such section: %s' % name)
 
-    def checksec(self):
-        return {}
 
     @classmethod
     def isSupportedFile(cls, fileName):
@@ -290,4 +244,4 @@ class ELF(Loader):
             with open(fileName, 'rb') as f:
                 return f.read(4) == b'\x7fELF'
         except BaseException as e:
-            raise LoaderError(e)
+            raise BinaryError(e)
