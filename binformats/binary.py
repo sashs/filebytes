@@ -52,18 +52,17 @@ class BinaryMeta(type):
         return o
 
 
-class Binary(metaclass=BinaryMeta):
+class Binary(object):
     ___meta__ = BinaryMeta
-    def __init__(self, fileName):
+    def __init__(self, fileName, fileContent=None):
         
-        self._bytes = None
-        self.__fileName = fileName
-        if not self.__class__.isSupportedFile(fileName):
+        self._bytes = fileContent if fileContent else self._readFile(fileName)
+        
+        if not self.__class__.isSupportedContent(self._bytes):
             raise BinaryError('Not a suitable filetype')
 
-
-    def __initialize__(self):
-        self._bytes = self._readFile()
+        self.__fileName = fileName
+        
 
     @property
     def fileName(self):
@@ -80,11 +79,15 @@ class Binary(metaclass=BinaryMeta):
     def imageBase(self):
         return 0x0
 
-    def _readFile(self):
+    @property
+    def type(self):
+        return 'ELF'
+
+    def _readFile(self, fileName):
         """
         Returns the bytes of the file.
         """
-        with open(self.fileName, 'rb') as binFile:
+        with open(fileName, 'rb') as binFile:
             b = binFile.read()
             bs = (ctypes.c_ubyte * len(b))()
             pack_into('%ds' % len(b), bs, 0, b)
@@ -101,6 +104,14 @@ class Binary(metaclass=BinaryMeta):
 
     @classmethod
     def isSupportedFile(cls, fileName):
+        try:
+            with open(fileName, 'rb') as f:
+                return isSupportedContent(file.read())
+        except BaseException as e:
+            raise BinaryError(e)
+
+    @classmethod
+    def isSupportedContent(cls, fileContent):
         return False
 
 

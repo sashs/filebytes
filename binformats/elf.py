@@ -647,14 +647,13 @@ class MSB_64():
 
 class EhdrData(Container):
     """
-    struct = SectionHeader
-    bytes = c_byte_array (section bytes)
+    header = SectionHeader
     """
 
 class ShdrData(Container):
 
     """
-    struct = SectionHeader
+    header = SectionHeader
     name = string (section name)
     bytes = c_byte_array (section bytes)
     """
@@ -690,23 +689,28 @@ class RelocationData(Container):
 
 class ELF(Binary):
 
-    def __init__(self, filename):
-        super(ELF, self).__init__(filename)
+    def __init__(self, fileName, fileContent=None):
+        super(ELF, self).__init__(fileName, fileContent)
 
-        self.ehdr = None
-        self.shdrs = []
-        self.symbols = {}
+        self.__elfClasses = self._getSuitableElfClasses()
+        if not self.__elfClasses:
+            raise BinaryError('Bad architecture')
+
+        self.__elfHeader = self._parseElfHeader(self._bytes)
+        self.__segments = self._parseSegments(self._bytes, self.elfHeader)
+        self.__sections = self._parseSections(self._bytes, self.elfHeader)
+        self.symbols = self._parseSymbols(self.__sections)
         self.relocations = {}
-        self.__sections = []
-        self.__segments = []
-        self.__elf_classes = None
-        self.__execSections = None
-        self.__dataSections = None
+        
+    @property
+    def _elfClasses(self):
+        return self.__elfClasses
+    
 
-    def __initialize__(self):
-        super(ELF, self).__initialize__()
-        self.__loadElfClasses()
-        self.__parse(self._bytes)
+    @property
+    def elfHeader(self):
+        return self.__elfHeader
+    
 
     @property
     def sections(self):
@@ -720,7 +724,7 @@ class ELF(Binary):
     def programHeaders(self):
         return list(self.__segments)
     
-    def __loadElfClasses(self):
+    def _getSuitableElfClasses(self):
         classes = None
         if self._bytes[EI.CLASS.value] == ELFCLASS.BITS_32.value:
             if self._bytes[EI.DATA.value] == ELFDATA.LSB.value:
@@ -733,89 +737,74 @@ class ELF(Binary):
                 classes = LSB_64
             elif self._bytes[EI.DATA.value] == ELFDATA.MSB.value:
                 classes = MSB_64
-        if not classes:
-            raise BinaryError('Bad architecture')
-        
-        self.__elf_classes = classes
+               
+        return classes
 
-    def _parseSegments(self, data):
-        offset = self.ehdr.e_phoff
+    def _parseElfHeader(self, data):
+        ehdr = self.__elfClasses.EHDR.from_buffer(data)
+        return EhdrData(header=ehdr)
 
-        for i in range(self.ehdr.e_phnum):
-            phdr = self.__elf_classes.PHDR.from_buffer(data, offset)
+    def _parseSegments(self, data, elfHeader):
+        offset = elfHeader.header.e_phoff
+        segments = []
+        for i in range(elfHeader.header.e_phnum):
+            phdr = self.__elfClasses.PHDR.from_buffer(data, offset)
             segment_bytes = (c_ubyte * phdr.p_filesz).from_buffer(data, phdr.p_offset)
 
+            phdrData = PhdrData(header=phdr, bytes=segment_bytes, type=PT(phdr.p_type).name, vaddr=phdr.p_vaddr, offset=phdr.p_offset)
+            segments.append(phdrData)
 
-            phdrData = PhdrData(header=phdr, bytes=bytearray(segment_bytes), type=PT(phdr.p_type).name, vaddr=phdr.p_vaddr, offset=phdr.p_offset)
-            self.__segments.append(phdrData)
+            offset += elfHeader.header.e_phentsize
 
-            offset += self.ehdr.e_phentsize
+        return segments
 
-        self.assertFileRange(get_ptr(data, offset))
+    def _parseSections(self, data, elfHeader):
+        offset = elfHeader.header.e_shoff
+        shdrs = []
+        for i in range(elfHeader.header.e_shnum):  
+            shdr = self.__elfClasses.SHDR.from_buffer(data, offset)
+            section_bytes = None
+            if SHT(shdr.sh_type) != SHT.NOBITS:
+                section_bytes = (c_ubyte * shdr.sh_size).from_buffer(data, shdr.sh_offset)
+
+            shdrs.append(ShdrData(name=None,header=shdr, bytes=section_bytes))
+            offset += elfHeader.header.e_shentsize
+
+        if elfHeader.header.e_shstrndx != SHN.UNDEF.value:
+            strtab = shdrs[elfHeader.header.e_shstrndx]
+            strtab_offset = strtab.header.sh_offset
+
+            for section in shdrs:
+                section.name = str(get_ptr(strtab.bytes, section.header.sh_name, c_char_p).value, 'ASCII')
+
+        return shdrs
+
+    def _parseSymbols(self, sections):
+        symbols = {}
+        for section in sections:
+            sh_type = SHT(section.header.sh_type)
+            strtab = sections[section.header.sh_link]
+
+            if sh_type in (SHT.DYNSYM, SHT.SYMTAB):
+                symbols[section.name] = self.__parseSymbolEntriesForSection(section, strtab)
+
+        return symbols
 
 
-    def __parseShdrs(self, p_bytes):
-        p_tmp = c_void_p(p_bytes.value + self.ehdr.e_shoff)
-        hdrs = []
-        for i in range(self.ehdr.e_shnum):
-            self.assertFileRange(p_tmp.value)
-            shdr = cast(p_tmp, POINTER(self.__elf_classes.SHDR)).contents
-            hdrs.append(shdr)
-
-            p_tmp.value += self.ehdr.e_shentsize
-
-        self.__parseSections(hdrs, p_bytes)
-
-    def __parseSections(self, hdrs, p_bytes):
-        for hdr in hdrs:
-            p_tmp = c_void_p(p_bytes.value + hdr.sh_offset)
-            self.assertFileRange(p_tmp.value)
-            ibytes = cast(p_tmp, POINTER(c_ubyte * hdr.sh_size)).contents
-            self.shdrs.append(ShdrData(name='', struct=hdr, bytes=ibytes))
-
-        self.__parseSectionNames(self.shdrs)
-
-    def __parseSectionNames(self, shdrs):
-        if self.ehdr.e_shstrndx != SHN.UNDEF:
-            strtab = self.shdrs[self.ehdr.e_shstrndx]
-            strtab_p = cast(pointer(strtab.bytes), c_void_p)
-            strtab_tmp = c_void_p(strtab_p.value)
-
-            for hdr in shdrs:
-
-                strtab_tmp.value = strtab_p.value + hdr.struct.sh_name
-                self.assertFileRange(strtab_tmp.value)
-                name = cast(strtab_tmp, c_char_p).value
-                hdr.name = name
-
-    def __getName(self, strtab, idx):
-        strtab_p = cast(pointer(strtab.bytes), c_void_p)
-        strtab_p.value += idx
-        self.assertFileRange(strtab_p.value)
-        name = cast(strtab_p, c_char_p).value
-        return name
-
-    def __parseSymbols(self):
-
-        for hdr in self.shdrs:
-            if hdr.struct.sh_type == SHT.DYNSYM or hdr.struct.sh_type == SHT.SYMTAB:
-                symbols = self.__parseSymbolEntries(
-                    hdr, self.shdrs[hdr.struct.sh_link])
-                self.symbols[hdr.name] = symbols
-
-    def __parseSymbolEntries(self, shdr, strtab):
+    def __parseSymbolEntriesForSection(self, section, strtab):
         entries = []
-        bytes_p = cast(pointer(shdr.bytes), c_void_p)
+        offset = 0
+        bytes_p = cast(pointer(section.bytes), c_void_p)
+        sym_size = sizeof(self.__elfClasses.SYM)
 
-        for i in range(int(shdr.struct.sh_size / sizeof(self.__elf_classes.SYM))):
-            self.assertFileRange(bytes_p.value)
-            entry = cast(bytes_p, POINTER(self.__elf_classes.SYM)).contents
-            name = self.__getName(strtab, entry.st_name)
+        for i in range(int(section.header.sh_size / sym_size)):
+            entry = self.__elfClasses.SYM.from_buffer(section.bytes, offset)
+            name = get_ptr(strtab.bytes, entry.st_name, c_char_p).value
 
             entries.append(SymbolData(
                 struct=entry, name=name, type=entry.st_info & 0xf, bind=entry.st_info >> 4))
 
-            bytes_p.value += sizeof(self.__elf_classes.SYM)
+            offset += sym_size
 
         return entries
 
@@ -830,32 +819,33 @@ class ELF(Binary):
                 self.relocations[hdr.name] = relocations
 
     def __parseRelocationEntries(self, shdr, symbols):
-        struct = self.__elf_classes.REL if shdr.struct.sh_type == SHT.REL else self.__elf_classes.RELA
+        struct = self.__elfClasses.REL if shdr.struct.sh_type == SHT.REL else self.__elfClasses.RELA
         bytes_p = cast(pointer(shdr.bytes), c_void_p)
         entries = []
 
         for i in range(int(shdr.struct.sh_size / sizeof(struct))):
             self.assertFileRange(bytes_p.value)
             entry = cast(bytes_p, POINTER(struct)).contents
-            sym = symbols[self.__elf_classes.R_SYM(entry.r_info)]
+            sym = symbols[self.__elfClasses.R_SYM(entry.r_info)]
             entries.append(
-                RelocationData(struct=entry, symbol=sym, type=self.__elf_classes.R_TYPE(entry.r_info)))
+                RelocationData(struct=entry, symbol=sym, type=self.__elfClasses.R_TYPE(entry.r_info)))
             bytes_p.value += sizeof(struct)
         return entries
 
     def __parse(self, data):
-        self.ehdr = self.__elf_classes.EHDR.from_buffer(data)
+        ehdr = self.__elfClasses.EHDR.from_buffer(data)
+        self.__elfheader = EhdrData(header=ehdr)
 
         self._parseSegments(data)
-        #self.__parseShdrs(data)
-        #self.__parseSymbols()
+        
+        self.__parseSymbols()
         #self.__parseRelocations()
 
     
 
     @property
     def entryPoint(self):
-        return self.ehdr.e_entry
+        return self.__elfheader.header.e_entry
 
     @property
     def imageBase(self):
@@ -869,9 +859,7 @@ class ELF(Binary):
                 return phdr.struct.p_vaddr
         return 0
 
-    @property
-    def type(self):
-        return 'ELF'
+    
 
     def getSection(self, name):
         for shdr in self.shdrs:
@@ -883,9 +871,7 @@ class ELF(Binary):
 
 
     @classmethod
-    def isSupportedFile(cls, fileName):
-        try:
-            with open(fileName, 'rb') as f:
-                return f.read(4) == b'\x7fELF'
-        except BaseException as e:
-            raise BinaryError(e)
+    def isSupportedContent(cls, fileContent):
+        """Returns if the files are valid for this filetype"""
+        return bytearray(fileContent)[:4] == b'\x7fELF'
+        
