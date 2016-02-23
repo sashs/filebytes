@@ -89,10 +89,7 @@ class Binary(object):
         """
         with open(fileName, 'rb') as binFile:
             b = binFile.read()
-            bs = (ctypes.c_ubyte * len(b))()
-            pack_into('%ds' % len(b), bs, 0, b)
-
-        return bs
+            return to_ubyte_array(b)
 
     def assertFileRange(self, value):
         if type(value) == ctypes.c_void_p:
