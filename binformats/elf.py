@@ -18,10 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from enum import Enum
-from ctypes import *
 from .binary import *
-import importlib
-import os
 
 ####################### Constants ############################
 
