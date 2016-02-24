@@ -101,7 +101,7 @@ class ImageDirectoryEntry(Enum):
     IAT = 12
     DELAY_IMPORT = 13
     COM_DESCRIPTOR = 14
-    NUMBEROF_DIRECTORY_ENTRIES = 16
+    NUMBER_OF_DIRECTORY_ENTRIES = 16
 
 
 class IMAGE_DOS_HEADER(Structure):
@@ -294,6 +294,20 @@ class DataDirectoryData(Container):
     header = IMAGE_DATA_DIRECTORY
     """
 
+class ImportData(Container):
+    """
+    header = IMAGE_IMPORT_DESCRIPTOR
+    dllName = name of dll (str)
+    importNameTable = list of IMAGE_THUNK_DATA
+    importAddressTable = list of IMAGE_THUNK_DATA
+    """
+
+class ThunkData(Container):
+    """
+    header = IMAGE_THUNK_DATA
+    rva = relative virtual address of thunk
+    """
+
 class PE(Binary):
 
     def __init__(self, fileName, fileContent=None):
@@ -424,23 +438,76 @@ class PE(Binary):
 
         return sections
 
+    def _toRawAddress(self, addr, section):
+        return addr - section.header.VirtualAddress + section.header.PointerToRawData
+
+    def _toOffset(self, addr, section):
+        return addr - section.header.VirtualAddress
+
     def _parseDataDirectory(self, data, sections, imageNtHeaders):
-        pass
+        
+        importDataDirectory = imageNtHeaders.header.OptionalHeader.DataDirectory[ImageDirectoryEntry.IMPORT.value]
+        self._parseDataDirectoryImport(data, importDataDirectory, sections)
 
+    def _parseDataDirectoryImport(self, data, dataDirectoryEntry, sections):
+        importSection = None
+        for section in sections:
+            if dataDirectoryEntry.VirtualAddress >= section.header.VirtualAddress and \
+            dataDirectoryEntry.VirtualAddress < section.header.VirtualAddress + section.header.SizeOfRawData :
+                
+                importSection = section
+                break
 
-    def __loadThunks(self, addr):
-        p_thunk = c_void_p(addr)
+        if not importSection:
+            return
+
+        rawPointer = self._toRawAddress(dataDirectoryEntry.VirtualAddress, section)
+        rawBytes = (c_ubyte * dataDirectoryEntry.Size).from_buffer(importSection.raw, self._toOffset(dataDirectoryEntry.VirtualAddress, section))
+        offset = 0
+
+        while True:
+            importDescriptor = IMAGE_IMPORT_DESCRIPTOR.from_buffer(rawBytes, offset)
+            offset += sizeof(IMAGE_IMPORT_DESCRIPTOR)
+
+            if importDescriptor.OriginalFirstThunk == 0:
+                break
+            else:
+                nameOffset = self._toOffset(importDescriptor.Name, importSection)
+                dllName = str(get_ptr(importSection.raw, nameOffset, c_char_p).value, 'ASCII')
+                importNameTable =  self.__loadThunks(importDescriptor.OriginalFirstThunk, importSection)
+                importAddressTable =  self.__loadThunks(importDescriptor.FirstThunk, importSection)
+                #functions = self.__loadThunkData(importNameTable, section)
+                
+
+    def __loadThunks(self, thunkRVA, importSection):
+        offset = self._toOffset(thunkRVA, importSection)
         thunks = []
         while True:
-            self.assertFileRange(p_thunk.value)
-            thunk = cast(
-                p_thunk, POINTER(self.__pe_module.IMAGE_THUNK_DATA)).contents
-            p_thunk.value += sizeof(self.__pe_module.IMAGE_THUNK_DATA)
+            thunk = IMAGE_THUNK_DATA.from_buffer(importSection.raw, offset)
+            offset += sizeof(IMAGE_THUNK_DATA)
             if thunk.Ordinal == 0:
                 break
             thunks.append(thunk)
-
         return thunks
+
+    def __parseThunkData(self, thunks, thunkRVA):
+        contents = []
+        tmpRVA = thunkRVA
+        for thunk in thunks:
+            if 0xf0000000 & thunk.AddressOfData == 0x80000000:
+                contents.append((thunk.AddressOfData & 0x0fffffff,'', tmpRVA))
+                tmpRVA += sizeof(self.__pe_module.IMAGE_THUNK_DATA)
+                continue
+            p_thunk_address_of_data = c_void_p(thunk.AddressOfData - diff)
+
+            ibn = cast(
+                p_thunk_address_of_data, POINTER(self.__pe_module.IMAGE_IMPORT_BY_NAME)).contents
+            p_thunk_address_of_data.value += 2
+            self.assertFileRange(p_thunk_address_of_data.value)
+            name = cast(p_thunk_address_of_data, c_char_p)
+            contents.append((ibn.Hint, name.value, tmpRVA))
+            tmpRVA += sizeof(self.__pe_module.IMAGE_THUNK_DATA)
+        return contents
 
     def __parseThunkContent(self, thunks, diff, thunkRVA):
         contents = []
@@ -461,20 +528,11 @@ class PE(Binary):
             tmpRVA += sizeof(self.__pe_module.IMAGE_THUNK_DATA)
         return contents
 
-    def __parseCode(self, section, p_bytes, size):
-        ibytes = cast(p_bytes, POINTER(c_ubyte * size)).contents
-        s = Section(section.Name, ibytes, section.VirtualAddress + self.imageBase, section.VirtualAddress)
-        self.sections[s.name] = s
-
     def __parseImports(self, section, p_bytes, size):
         ibytes = cast(p_bytes, POINTER(c_ubyte * size)).contents
         s = Section('.idata', ibytes, section.VirtualAddress + self.imageBase, section.VirtualAddress)
         self.sections[s.name] = s
         s.importDescriptorTable = []
-        s.importNameTable = []
-        s.importAddressTable = []
-        s.importHintsAndNames = []
-        s.contents = {}
         idataRVA = section.VirtualAddress
         idataFAddr = section.PointerToRawData + self._bytes_p.value
         s.header = section
@@ -516,23 +574,9 @@ class PE(Binary):
 
         return ImageNtHeaderData(header=inth)
 
-
-    def __parse(self, p_bytes):
         
-        importVaddr = self.imageNtHeaders.OptionalHeader.DataDirectory[ImageDirectoryEntry.IMPORT].VirtualAddress
-        for section in self.sectionHeader:
-            if importVaddr > section.VirtualAddress and importVaddr < (section.VirtualAddress + section.SizeOfRawData) :
-                p_tmp.value = p_bytes.value + (importVaddr - section.VirtualAddress + section.PointerToRawData)
-                size = self.imageNtHeaders.OptionalHeader.DataDirectory[
-                    ImageDirectoryEntry.IMPORT].Size
-                self.__parseImports(section, p_tmp, size)
-                idata = True
-            if section.Characteristics & IMAGE_SCN.CNT_CODE > 0:
-                p_tmp.value = p_bytes.value + section.PointerToRawData
-                size = section.PhysicalAddress_or_VirtualSize
-                self.__parseCode(section, p_tmp, size)
-                textsection = section
-
+        
+            
     @classmethod
     def isSupportedContent(cls, fileContent):
         """Returns if the files are valid for this filetype"""
