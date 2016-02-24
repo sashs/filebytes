@@ -770,7 +770,7 @@ class ShdrData(Container):
     header = SectionHeader
     name = string (section name)
     bytes = bytearray (section bytes)
-    c_bytes = c_ubyte_array
+    raw = c_ubyte_array
     """
 
 
@@ -780,7 +780,7 @@ class PhdrData(Container):
     type = Programm Header Type
     header = ProgrammHeader
     bytes = bytearray (section bytes)
-    c_bytes = c_ubyte_array
+    raw = c_ubyte_array
     vaddr = virtual address (int)
     offset = offset
     """
@@ -889,7 +889,7 @@ class ELF(Binary):
             phdr = self.__elfClasses.PHDR.from_buffer(data, offset)
             segment_bytes = (c_ubyte * phdr.p_filesz).from_buffer(data, phdr.p_offset)
 
-            phdrData = PhdrData(header=phdr, c_bytes=segment_bytes, bytes=bytearray(segment_bytes), type=PT(phdr.p_type).name, vaddr=phdr.p_vaddr, offset=phdr.p_offset)
+            phdrData = PhdrData(header=phdr, raw=segment_bytes, bytes=bytearray(segment_bytes), type=PT(phdr.p_type).name, vaddr=phdr.p_vaddr, offset=phdr.p_offset)
             segments.append(phdrData)
 
             offset += elfHeader.header.e_phentsize
@@ -907,7 +907,7 @@ class ELF(Binary):
             if SHT(shdr.sh_type) != SHT.NOBITS:
                 section_bytes = (c_ubyte * shdr.sh_size).from_buffer(data, shdr.sh_offset)
                 ba_section_bytes = bytearray(section_bytes)
-            shdrs.append(ShdrData(name=None,header=shdr, c_bytes=section_bytes, bytes=ba_section_bytes))
+            shdrs.append(ShdrData(name=None,header=shdr, raw=section_bytes, bytes=ba_section_bytes))
             offset += elfHeader.header.e_shentsize
 
         if elfHeader.header.e_shstrndx != SHN.UNDEF.value:
@@ -915,7 +915,7 @@ class ELF(Binary):
             strtab_offset = strtab.header.sh_offset
 
             for section in shdrs:
-                section.name = str(get_ptr(strtab.c_bytes, section.header.sh_name, c_char_p).value, 'ASCII')
+                section.name = str(get_ptr(strtab.raw, section.header.sh_name, c_char_p).value, 'ASCII')
 
         return shdrs
 
@@ -932,12 +932,12 @@ class ELF(Binary):
     def __parseSymbolEntriesForSection(self, section, strtab):
         entries = []
         offset = 0
-        bytes_p = cast(pointer(section.c_bytes), c_void_p)
+        bytes_p = cast(pointer(section.raw), c_void_p)
         sym_size = sizeof(self.__elfClasses.SYM)
 
         for i in range(int(section.header.sh_size / sym_size)):
-            entry = self.__elfClasses.SYM.from_buffer(section.c_bytes, offset)
-            name = get_ptr(strtab.c_bytes, entry.st_name, c_char_p).value
+            entry = self.__elfClasses.SYM.from_buffer(section.raw, offset)
+            name = get_ptr(strtab.raw, entry.st_name, c_char_p).value
             sym_data = SymbolData(header=entry, name=str(name,'ASCII'), type=entry.st_info & 0xf, bind=entry.st_info >> 4)
             entries.append(sym_data)
 
@@ -963,7 +963,7 @@ class ELF(Binary):
         entries = []
 
         for i in range(int(section.header.sh_size / struct_size)):
-            entry = struct.from_buffer(section.c_bytes, offset)
+            entry = struct.from_buffer(section.raw, offset)
             sym = symbols[self.__elfClasses.R_SYM(entry.r_info)]
             reloc_entry = RelocationData(header=entry, symbol=sym, type=self.__elfClasses.R_TYPE(entry.r_info))
             entries.append(reloc_entry)
@@ -980,7 +980,7 @@ class ELF(Binary):
             dyns = []
             if SHT(section.header.sh_type) == SHT.DYNAMIC:
                 for i in range(int(len(section.bytes) / dyn_size)):
-                    dyn = self._elfClasses.DYN.from_buffer(section.c_bytes, offset)
+                    dyn = self._elfClasses.DYN.from_buffer(section.raw, offset)
                     dyns.append(DynamicData(header=dyn, tag=DT(dyn.d_tag)))
                     if DT(dyn.d_tag) == DT.NULL:
                         break
@@ -1006,7 +1006,7 @@ class ELF(Binary):
 
         for section in sections:
             if section.header.sh_addr == dyn_strtab.header.d_un:
-                dyn.val = str(get_ptr(section.c_bytes, dyn.header.d_un, c_char_p).value, 'ASCII')
+                dyn.val = str(get_ptr(section.raw, dyn.header.d_un, c_char_p).value, 'ASCII')
                 break
 
     @classmethod
