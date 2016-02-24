@@ -4,12 +4,12 @@
 #
 # This file is part of Ropper.
 #
-# Ropper is free software: you can redistribute it and/or modify
+# This is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Ropper is distributed in the hope that it will be useful,
+# This software is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -29,31 +29,7 @@ class Container(object):
             setattr(key, value)
 
 
-class Section(object):
-
-    def __init__(self, name, sectionbytes, virtualAddress, offset, struct=None):
-        if type(name) == bytes:
-            name = name.decode('ascii')
-        self.name = name
-        self.bytes = sectionbytes
-        self.virtualAddress = virtualAddress
-        self.offset = offset
-        self.struct = struct
-
-    @property
-    def size(self):
-        return len(self.bytes)
-
-class BinaryMeta(type):
-
-    def __call__(cls, *args, **kwargs):
-        o = super(BinaryMeta, cls).__call__(*args, **kwargs)
-        o.__initialize__()
-        return o
-
-
 class Binary(object):
-    ___meta__ = BinaryMeta
     def __init__(self, fileName, fileContent=None):
         
         self._bytes = fileContent if fileContent else self._readFile(fileName)
