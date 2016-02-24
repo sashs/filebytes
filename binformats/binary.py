@@ -19,7 +19,7 @@
 from .ctypes_helper import * 
 from struct import pack_into
 
-import ctypes
+from ctypes import *
 
 class Container(object):
 
@@ -68,7 +68,7 @@ class Binary(object):
             return to_ubyte_array(b)
 
     def assertFileRange(self, value):
-        if type(value) == ctypes.c_void_p:
+        if type(value) == c_void_p:
             value = value.value
 
         file_data_pointer = get_ptr(self._bytes)
