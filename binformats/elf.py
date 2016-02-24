@@ -1010,7 +1010,6 @@ class ELF(Binary):
         for section in sections:
             if section.header.sh_addr == dyn_strtab.header.d_un:
                 dyn.val = str(get_ptr(section.c_bytes, dyn.header.d_un, c_char_p).value, 'ASCII')
-                print(dyn.val)
                 break
 
     @classmethod
