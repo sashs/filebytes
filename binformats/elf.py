@@ -771,6 +771,15 @@ class ShdrData(Container):
     name = string (section name)
     bytes = bytearray (section bytes)
     raw = c_ubyte_array
+
+    .dynamic
+    content = List of DYN entries
+
+    .rel & .rela
+    relocations = list of REL or RELA
+
+    .dynsym & .symtab
+    symbols = list of SYM entries
     """
 
 
