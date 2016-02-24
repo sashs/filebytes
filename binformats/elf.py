@@ -818,7 +818,7 @@ class ELF(Binary):
     def __init__(self, fileName, fileContent=None):
         super(ELF, self).__init__(fileName, fileContent)
 
-        self.__elfClasses = self._getSuitableElfClasses()
+        self.__elfClasses = self._getSuitableElfClasses(self._bytes)
         if not self.__elfClasses:
             raise BinaryError('Bad architecture')
 
@@ -859,19 +859,19 @@ class ELF(Binary):
     def imageBase(self):
         return self.segments[0].header.p_vaddr - self.segments[0].header.p_offset
     
-    def _getSuitableElfClasses(self):
+    def _getSuitableElfClasses(self, data):
         """Returns the class which holds the suitable classes for the loaded file"""
         classes = None
-        if self._bytes[EI.CLASS.value] == ELFCLASS.BITS_32.value:
-            if self._bytes[EI.DATA.value] == ELFDATA.LSB.value:
+        if data[EI.CLASS.value] == ELFCLASS.BITS_32.value:
+            if data[EI.DATA.value] == ELFDATA.LSB.value:
                 classes = LSB_32
-            elif self._bytes[EI.DATA.value] == ELFDATA.MSB.value:
+            elif data[EI.DATA.value] == ELFDATA.MSB.value:
                 classes = MSB_32
 
-        elif self._bytes[EI.CLASS.value] == ELFCLASS.BITS_64.value:
-            if self._bytes[EI.DATA.value] == ELFDATA.LSB.value:
+        elif data[EI.CLASS.value] == ELFCLASS.BITS_64.value:
+            if data[EI.DATA.value] == ELFDATA.LSB.value:
                 classes = LSB_64
-            elif self._bytes[EI.DATA.value] == ELFDATA.MSB.value:
+            elif data[EI.DATA.value] == ELFDATA.MSB.value:
                 classes = MSB_64
                
         return classes
