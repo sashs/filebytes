@@ -1,15 +1,15 @@
 # coding=utf-8
 #
-# Copyright 2014 Sascha Schirra
+# Copyright 2016 Sascha Schirra
 #
 # This file is part of Ropper.
 #
-# Ropper is free software: you can redistribute it and/or modify
+# This is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Ropper is distributed in the hope that it will be useful,
+# This software is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -310,6 +310,99 @@ class PF(Enum):
 
         return toReturn
 
+class DT(Enum):
+    NULL = 0
+    NEEDED = 1
+    PLTRELSZ = 2
+    PLTGOT = 3
+    HASH = 4
+    STRTAB = 5
+    SYMTAB = 6
+    RELA = 7
+    RELASZ = 8
+    RELAENT = 9
+    STRSZ = 10
+    SYMENT = 11
+    INIT = 12
+    FINI = 13
+    SONAME = 14
+    RPATH = 15
+    SYMBOLIC = 16
+    REL = 17
+    RELSZ = 18
+    RELENT = 19
+    PLTREL = 20
+    DEBUG = 21
+    TEXTREL = 22
+    JMPREL = 23
+    BIND_NOW = 24
+    INIT_ARRAY = 25
+    FINI_ARRAY = 26
+    INIT_ARRAYSZ = 27
+    FINI_ARRAYSZ = 28
+    RUNPATH = 29
+    FLAGS = 30
+    ENCODING = 32
+    PREINIT_ARRAY = 32
+    PREINIT_ARRAYSZ = 33
+    MAXPOSTAGS = 34
+    LOOS = 0x6000000d
+    SUNW_AUXILIARY = 0x6000000d
+    SUNW_RTLDINF = 0x6000000e
+    SUNW_FILTER = 0x6000000e
+    SUNW_CAP = 0x60000010
+    SUNW_SYMTAB = 0x60000011
+    SUNW_SYMSZ = 0x60000012
+    SUNW_ENCODING = 0x60000013
+    SUNW_SORTENT = 0x60000013
+    SUNW_SYMSORT = 0x60000014
+    SUNW_SYMSORTSZ = 0x60000015
+    SUNW_TLSSORT = 0x60000016
+    SUNW_TLSSORTSZ = 0x60000017
+    SUNW_CAPINFO = 0x60000018
+    SUNW_STRPAD = 0x60000019
+    SUNW_CAPCHAIN = 0x6000001a
+    SUNW_LDMACH = 0x6000001b
+    SUNW_CAPCHAINENT = 0x6000001d
+    SUNW_CAPCHAINSZ = 0x6000001f
+    HIOS = 0x6ffff000
+    VALRNGLO = 0x6ffffd00
+    CHECKSUM = 0x6ffffdf8
+    PLTPADSZ = 0x6ffffdf9
+    MOVEENT = 0x6ffffdfa
+    MOVESZ = 0x6ffffdfb
+    POSFLAG_1 = 0x6ffffdfd
+    SYMINSZ = 0x6ffffdfe
+    SYMINENT = 0x6ffffdff
+    VALRNGHI = 0x6ffffdff
+    ADDRRNGLO = 0x6ffffe00
+    GNU_HASH = 0x6ffffef5
+    TLSDESC_PLT = 0x6ffffef6
+    TLSDESC_GOT  = 0x6ffffef7
+    GNU_CONFLICT = 0x6ffffef8
+    GNU_LIBLIST = 0x6ffffef9
+    CONFIG = 0x6ffffefa
+    DEPAUDIT = 0x6ffffefb
+    AUDIT = 0x6ffffefc
+    PLTPAD = 0x6ffffefd
+    MOVETAB = 0x6ffffefe
+    SYMINFO = 0x6ffffeff
+    ADDRRNGHI = 0x6ffffeff
+    VERSYM = 0x6ffffff0
+    RELACOUNT = 0x6ffffff9
+    RELCOUNT = 0x6ffffffa
+    FLAGS_1 = 0x6ffffffb
+    VERDEF = 0x6ffffffc
+    VERDEFNUM = 0x6ffffffd
+    VERNEED = 0x6ffffffe
+    VERNEEDNUM = 0x6fffffff
+    LOPROC = 0x70000000
+    SPARC_REGISTER = 0x70000001
+    AUXILIARY = 0x7ffffffd
+    USED = 0x7ffffffe
+    FILTER = 0x7fffffff
+    HIPROC = 0x7fffffff
+
 ########################### LSB 32 BIT Structures ###########################
 
 LSB_32_R_SYM = lambda i: i >> 8
@@ -380,6 +473,11 @@ class LSB_32_PHDR(LittleEndianStructure):
                 ('p_align', c_uint)
                 ]
 
+class LSB_32_DYN(LittleEndianStructure):
+    _fields_ = [('d_tag', c_uint),
+                ('d_un', c_uint)
+                ]
+
 class LSB_32():
     PHDR = LSB_32_PHDR
     EHDR = LSB_32_EHDR
@@ -387,6 +485,7 @@ class LSB_32():
     REL = LSB_32_REL
     RELA = LSB_32_RELA
     SYM = LSB_32_SYM
+    DYN = LSB_32_DYN
     R_SYM = LSB_32_R_SYM
     R_TYPE = LSB_32_R_TYPE
 
@@ -460,6 +559,11 @@ class MSB_32_PHDR(BigEndianStructure):
                 ('p_align', c_uint)
                 ]
 
+class MSB_32_DYN(BigEndianStructure):
+    _fields_ = [('d_tag', c_uint),
+                ('d_un', c_uint)
+                ]
+
 class MSB_32():
     PHDR = MSB_32_PHDR
     EHDR = MSB_32_EHDR
@@ -467,6 +571,7 @@ class MSB_32():
     REL = MSB_32_REL
     RELA = MSB_32_RELA
     SYM = MSB_32_SYM
+    DYN = MSB_32_DYN
     R_SYM = MSB_32_R_SYM
     R_TYPE = MSB_32_R_TYPE
 
@@ -552,6 +657,11 @@ class LSB_64_PHDR(LittleEndianStructure):
                 ('p_align', Elf64_Xword)
                 ]
 
+class LSB_64_DYN(LittleEndianStructure):
+    _fields_ = [('d_tag', Elf64_Xword),
+                ('d_un', Elf64_Xword)
+                ]
+
 class LSB_64():
     PHDR = LSB_64_PHDR
     EHDR = LSB_64_EHDR
@@ -559,6 +669,7 @@ class LSB_64():
     REL = LSB_64_REL
     RELA = LSB_64_RELA
     SYM = LSB_64_SYM
+    DYN = LSB_64_DYN
     R_SYM = LSB_64_R_SYM
     R_TYPE = LSB_64_R_TYPE
 
@@ -633,6 +744,10 @@ class MSB_64_PHDR(BigEndianStructure):
                 ('p_align', Elf64_Xword)
                 ]
 
+class MSB_64_DYN(BigEndianStructure):
+    _fields_ = [('d_tag', Elf64_Xword),
+                ('d_un', Elf64_Xword)
+                ]
 
 class MSB_64():
     PHDR = MSB_64_PHDR
@@ -641,6 +756,7 @@ class MSB_64():
     REL = MSB_64_REL
     RELA = MSB_64_RELA
     SYM = MSB_64_SYM
+    DYN = MSB_64_DYN
     R_SYM = MSB_64_R_SYM
     R_TYPE = MSB_64_R_TYPE
 
@@ -658,7 +774,6 @@ class ShdrData(Container):
     name = string (section name)
     bytes = bytearray (section bytes)
     c_bytes = c_ubyte_array
-    
     """
 
 
@@ -669,7 +784,7 @@ class PhdrData(Container):
     header = ProgrammHeader
     bytes = bytearray (section bytes)
     c_bytes = c_ubyte_array
-    vaddr = virtual address
+    vaddr = virtual address (int)
     offset = offset
     """
 
@@ -680,6 +795,7 @@ class SymbolData(Container):
     header = Symbol
     name = string
     type = int
+    bind = bind
     """
 
 
@@ -691,6 +807,14 @@ class RelocationData(Container):
     type = type of relocation
     """
 
+class DynamicData(Container):
+    """
+    header = DYN
+    tag = value of class DT
+
+    """
+
+##################### ELF Class ##############################
 
 class ELF(Binary):
 
@@ -705,6 +829,7 @@ class ELF(Binary):
         self.__segments = self._parseSegments(self._bytes, self.elfHeader)
         self.__sections = self._parseSections(self._bytes, self.elfHeader)
         self._parseSymbols(self.sections)
+        self._parseDynamic(self.sections)
         self.relocations = {}
         
     @property
@@ -849,6 +974,44 @@ class ELF(Binary):
 
         return entries
 
+    def _parseDynamic(self, sections):
+        
+        dyn_size = sizeof(self._elfClasses.DYN)
+        
+        for section in sections:
+            offset = 0
+            dyns = []
+            if SHT(section.header.sh_type) == SHT.DYNAMIC:
+                for i in range(int(len(section.bytes) / dyn_size)):
+                    dyn = self._elfClasses.DYN.from_buffer(section.c_bytes, offset)
+                    dyns.append(DynamicData(header=dyn, tag=DT(dyn.d_tag)))
+                    if DT(dyn.d_tag) == DT.NULL:
+                        break
+                    offset += dyn_size
+                section.content = dyns
+                self._parseDynamicTags(dyns, sections)
+
+    def _parseDynamicTags(self, dyns, sections):
+        
+        for dyn in dyns:
+            if dyn.tag == DT.NEEDED:
+                self.__parseDynamicTagNeeded(dyn, dyns, sections)
+
+
+    def __parseDynamicTagNeeded(self, dyn, dyns, sections):
+        dyn_strtab = None
+        for d in dyns:
+            if d.tag == DT.STRTAB:
+                dyn_strtab = d
+
+        if not dyn_strtab:
+            return
+
+        for section in sections:
+            if section.header.sh_addr == dyn_strtab.header.d_un:
+                dyn.val = str(get_ptr(section.c_bytes, dyn.header.d_un, c_char_p).value, 'ASCII')
+                print(dyn.val)
+                break
 
     @classmethod
     def isSupportedContent(cls, fileContent):
