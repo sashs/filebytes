@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from enum import Enum
+from .enum import Enum
 from .binary import *
 
 ####################### Constants ############################
@@ -339,19 +339,19 @@ class DT(Enum):
     FINI_ARRAYSZ = 28
     RUNPATH = 29
     FLAGS = 30
-    ENCODING = 32
+    ENCODING = 31
     PREINIT_ARRAY = 32
     PREINIT_ARRAYSZ = 33
     MAXPOSTAGS = 34
     LOOS = 0x6000000d
-    SUNW_AUXILIARY = 0x6000000d
+    #SUNW_AUXILIARY = 0x6000000d
     SUNW_RTLDINF = 0x6000000e
-    SUNW_FILTER = 0x6000000e
+    #SUNW_FILTER = 0x6000000e
     SUNW_CAP = 0x60000010
     SUNW_SYMTAB = 0x60000011
     SUNW_SYMSZ = 0x60000012
     SUNW_ENCODING = 0x60000013
-    SUNW_SORTENT = 0x60000013
+    #SUNW_SORTENT = 0x60000013
     SUNW_SYMSORT = 0x60000014
     SUNW_SYMSORTSZ = 0x60000015
     SUNW_TLSSORT = 0x60000016
@@ -371,7 +371,7 @@ class DT(Enum):
     POSFLAG_1 = 0x6ffffdfd
     SYMINSZ = 0x6ffffdfe
     SYMINENT = 0x6ffffdff
-    VALRNGHI = 0x6ffffdff
+    #VALRNGHI = 0x6ffffdff
     ADDRRNGLO = 0x6ffffe00
     GNU_HASH = 0x6ffffef5
     TLSDESC_PLT = 0x6ffffef6
@@ -384,7 +384,7 @@ class DT(Enum):
     PLTPAD = 0x6ffffefd
     MOVETAB = 0x6ffffefe
     SYMINFO = 0x6ffffeff
-    ADDRRNGHI = 0x6ffffeff
+    #ADDRRNGHI = 0x6ffffeff
     VERSYM = 0x6ffffff0
     RELACOUNT = 0x6ffffff9
     RELCOUNT = 0x6ffffffa
@@ -397,7 +397,7 @@ class DT(Enum):
     SPARC_REGISTER = 0x70000001
     AUXILIARY = 0x7ffffffd
     USED = 0x7ffffffe
-    FILTER = 0x7fffffff
+    #FILTER = 0x7fffffff
     HIPROC = 0x7fffffff
 
 ########################### LSB 32 BIT Structures ###########################
@@ -827,8 +827,8 @@ class ELF(Binary):
     def __init__(self, fileName, fileContent=None):
         super(ELF, self).__init__(fileName, fileContent)
 
-        self.__elfClasses = self._getSuitableElfClasses(self._bytes)
-        if not self.__elfClasses:
+        self.__classes = self._getSuitableClasses(self._bytes)
+        if not self.__classes:
             raise BinaryError('Bad architecture')
 
         self.__elfHeader = self._parseElfHeader(self._bytes)
@@ -839,8 +839,8 @@ class ELF(Binary):
         self.relocations = {}
         
     @property
-    def _elfClasses(self):
-        return self.__elfClasses
+    def _classes(self):
+        return self.__classes
     
 
     @property
@@ -868,26 +868,26 @@ class ELF(Binary):
     def imageBase(self):
         return self.segments[0].header.p_vaddr - self.segments[0].header.p_offset
     
-    def _getSuitableElfClasses(self, data):
+    def _getSuitableClasses(self, data):
         """Returns the class which holds the suitable classes for the loaded file"""
         classes = None
-        if data[EI.CLASS.value] == ELFCLASS.BITS_32.value:
-            if data[EI.DATA.value] == ELFDATA.LSB.value:
+        if data[EI.CLASS] == ELFCLASS.BITS_32:
+            if data[EI.DATA] == ELFDATA.LSB:
                 classes = LSB_32
-            elif data[EI.DATA.value] == ELFDATA.MSB.value:
+            elif data[EI.DATA] == ELFDATA.MSB:
                 classes = MSB_32
 
-        elif data[EI.CLASS.value] == ELFCLASS.BITS_64.value:
-            if data[EI.DATA.value] == ELFDATA.LSB.value:
+        elif data[EI.CLASS] == ELFCLASS.BITS_64:
+            if data[EI.DATA] == ELFDATA.LSB:
                 classes = LSB_64
-            elif data[EI.DATA.value] == ELFDATA.MSB.value:
+            elif data[EI.DATA] == ELFDATA.MSB:
                 classes = MSB_64
                
         return classes
 
     def _parseElfHeader(self, data):
         """Returns the elf header"""
-        ehdr = self.__elfClasses.EHDR.from_buffer(data)
+        ehdr = self.__classes.EHDR.from_buffer(data)
         return EhdrData(header=ehdr)
 
     def _parseSegments(self, data, elfHeader):
@@ -895,10 +895,10 @@ class ELF(Binary):
         offset = elfHeader.header.e_phoff
         segments = []
         for i in range(elfHeader.header.e_phnum):
-            phdr = self.__elfClasses.PHDR.from_buffer(data, offset)
+            phdr = self.__classes.PHDR.from_buffer(data, offset)
             segment_bytes = (c_ubyte * phdr.p_filesz).from_buffer(data, phdr.p_offset)
 
-            phdrData = PhdrData(header=phdr, raw=segment_bytes, bytes=bytearray(segment_bytes), type=PT(phdr.p_type).name, vaddr=phdr.p_vaddr, offset=phdr.p_offset)
+            phdrData = PhdrData(header=phdr, raw=segment_bytes, bytes=bytearray(segment_bytes), type=PT[phdr.p_type].name, vaddr=phdr.p_vaddr, offset=phdr.p_offset)
             segments.append(phdrData)
 
             offset += elfHeader.header.e_phentsize
@@ -910,28 +910,28 @@ class ELF(Binary):
         offset = elfHeader.header.e_shoff
         shdrs = []
         for i in range(elfHeader.header.e_shnum):  
-            shdr = self.__elfClasses.SHDR.from_buffer(data, offset)
+            shdr = self.__classes.SHDR.from_buffer(data, offset)
             section_bytes = None
             ba_section_bytes = None
-            if SHT(shdr.sh_type) != SHT.NOBITS:
+            if shdr.sh_type != SHT.NOBITS:
                 section_bytes = (c_ubyte * shdr.sh_size).from_buffer(data, shdr.sh_offset)
                 ba_section_bytes = bytearray(section_bytes)
             shdrs.append(ShdrData(name=None,header=shdr, raw=section_bytes, bytes=ba_section_bytes))
             offset += elfHeader.header.e_shentsize
 
-        if elfHeader.header.e_shstrndx != SHN.UNDEF.value:
+        if elfHeader.header.e_shstrndx != SHN.UNDEF:
             strtab = shdrs[elfHeader.header.e_shstrndx]
             strtab_offset = strtab.header.sh_offset
 
             for section in shdrs:
-                section.name = str(get_ptr(strtab.raw, section.header.sh_name, c_char_p).value, 'ASCII')
+                section.name = get_str(strtab.raw, section.header.sh_name)
 
         return shdrs
 
     def _parseSymbols(self, sections):
         """Sets a list of symbols in each DYNSYM and SYMTAB section"""
         for section in sections:
-            sh_type = SHT(section.header.sh_type)
+            sh_type = SHT[section.header.sh_type]
             strtab = sections[section.header.sh_link]
 
             if sh_type in (SHT.DYNSYM, SHT.SYMTAB):
@@ -942,12 +942,12 @@ class ELF(Binary):
         entries = []
         offset = 0
         bytes_p = cast(pointer(section.raw), c_void_p)
-        sym_size = sizeof(self.__elfClasses.SYM)
+        sym_size = sizeof(self.__classes.SYM)
 
         for i in range(int(section.header.sh_size / sym_size)):
-            entry = self.__elfClasses.SYM.from_buffer(section.raw, offset)
-            name = get_ptr(strtab.raw, entry.st_name, c_char_p).value
-            sym_data = SymbolData(header=entry, name=str(name,'ASCII'), type=entry.st_info & 0xf, bind=entry.st_info >> 4)
+            entry = self.__classes.SYM.from_buffer(section.raw, offset)
+            name = get_str(strtab.raw, entry.st_name)
+            sym_data = SymbolData(header=entry, name=name, type=entry.st_info & 0xf, bind=entry.st_info >> 4)
             entries.append(sym_data)
 
             offset += sym_size
@@ -960,21 +960,21 @@ class ELF(Binary):
             self.__parseSymbols()
 
         for section in sections:
-            if SHN(section.header.sh_link) != SHN.UNDEF and SHT(section.header.sh_type) in (SHT.REL, SHT.RELA):
+            if SHN[section.header.sh_link] != SHN.UNDEF and SHT[section.header.sh_type] in (SHT.REL, SHT.RELA):
                 symbols = sections[section.header.sh_link].symbols
                 relocations = self.__parseRelocationEntries(section, symbols)
                 section.relocations = relocations
 
     def __parseRelocationEntries(self, section, symbols):
-        struct = self.__elfClasses.REL if SHT(section.header.sh_type) == SHT.REL else self.__elfClasses.RELA
+        struct = self.__classes.REL if SHT[section.header.sh_type] == SHT.REL else self.__classes.RELA
         struct_size = sizeof(struct)
         offset = 0
         entries = []
 
         for i in range(int(section.header.sh_size / struct_size)):
             entry = struct.from_buffer(section.raw, offset)
-            sym = symbols[self.__elfClasses.R_SYM(entry.r_info)]
-            reloc_entry = RelocationData(header=entry, symbol=sym, type=self.__elfClasses.R_TYPE(entry.r_info))
+            sym = symbols[self.__classes.R_SYM(entry.r_info)]
+            reloc_entry = RelocationData(header=entry, symbol=sym, type=self.__classes.R_TYPE(entry.r_info))
             entries.append(reloc_entry)
             offset += sizeof(struct)
 
@@ -982,16 +982,16 @@ class ELF(Binary):
 
     def _parseDynamic(self, sections):
         
-        dyn_size = sizeof(self._elfClasses.DYN)
+        dyn_size = sizeof(self._classes.DYN)
         
         for section in sections:
             offset = 0
             dyns = []
-            if SHT(section.header.sh_type) == SHT.DYNAMIC:
+            if SHT[section.header.sh_type] == SHT.DYNAMIC:
                 for i in range(int(len(section.bytes) / dyn_size)):
-                    dyn = self._elfClasses.DYN.from_buffer(section.raw, offset)
-                    dyns.append(DynamicData(header=dyn, tag=DT(dyn.d_tag)))
-                    if DT(dyn.d_tag) == DT.NULL:
+                    dyn = self._classes.DYN.from_buffer(section.raw, offset)
+                    dyns.append(DynamicData(header=dyn, tag=DT[dyn.d_tag]))
+                    if dyn.d_tag == DT.NULL:
                         break
                     offset += dyn_size
                 section.content = dyns
@@ -1015,7 +1015,7 @@ class ELF(Binary):
 
         for section in sections:
             if section.header.sh_addr == dyn_strtab.header.d_un:
-                dyn.val = str(get_ptr(section.raw, dyn.header.d_un, c_char_p).value, 'ASCII')
+                dyn.val = get_str(section.raw, dyn.header.d_un)
                 break
 
     @classmethod

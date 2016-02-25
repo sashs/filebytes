@@ -2,14 +2,14 @@
 #
 # Copyright 2016 Sascha Schirra
 #
-# This file is part of Ropper.
+# This file is part of filebytes.
 #
-# This is free software: you can redistribute it and/or modify
+# filebytes is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# This software is distributed in the hope that it will be useful,
+# filebytes software is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from enum import Enum
+from .enum import Enum
 from .binary import *
 
 ###################### PE General #################
@@ -334,6 +334,15 @@ class ThunkData(Container):
 class ExportDirectoryData(Container):
     """
     header = IMAGE_EXPORT_DIRECTORY
+    name = name of dll (str)
+    functions = list of FunctionData
+    """
+
+class FunctionData(Container):
+    """
+    name = name of the function (str)
+    ordinal = ordinal (int)
+    rva = relative virtual address of function (int)
     """
 
 class PE(Binary):
@@ -344,9 +353,9 @@ class PE(Binary):
 
         
         self.__imageDosHeader = self._parseImageDosHeader(self._bytes)
-        self.__peClasses = self._getSuitablePeClasses(self._bytes, self.imageDosHeader)
+        self.__classes = self._getSuitableClasses(self._bytes, self.imageDosHeader)
 
-        if not self.__peClasses:
+        if not self.__classes:
             raise BinaryError('Bad architecture')
 
         self.__imageNtHeaders = self._parseImageNtHeaders(self._bytes, self.imageDosHeader)
@@ -356,8 +365,8 @@ class PE(Binary):
         
         
     @property
-    def _peClasses(self):
-        return self.__peClasses
+    def _classes(self):
+        return self.__classes
     
     @property
     def imageDosHeader(self):
@@ -388,10 +397,10 @@ class PE(Binary):
     def type(self):
         return 'PE'
 
-    def _getSuitablePeClasses(self, data, imageDosHeader):
+    def _getSuitableClasses(self, data, imageDosHeader):
         """Returns the class which holds the suitable classes for the loaded file"""
         classes = None
-        machine = IMAGE_FILE_MACHINE(c_ushort.from_buffer(data,imageDosHeader.header.e_lfanew+4).value)
+        machine = IMAGE_FILE_MACHINE[c_ushort.from_buffer(data,imageDosHeader.header.e_lfanew+4).value]
 
         if machine == IMAGE_FILE_MACHINE.I386:
             classes = PE32
@@ -410,7 +419,7 @@ class PE(Binary):
 
     def _parseImageNtHeaders(self, data, imageDosHeader):
         """Returns the ImageNtHeaders"""
-        inth = self._peClasses.IMAGE_NT_HEADERS.from_buffer(data, imageDosHeader.header.e_lfanew)
+        inth = self._classes.IMAGE_NT_HEADERS.from_buffer(data, imageDosHeader.header.e_lfanew)
 
         if inth.Signature != b'PE':
             raise BinaryError('No valid PE/COFF file')
@@ -420,7 +429,7 @@ class PE(Binary):
     def _parseSections(self, data, imageDosHeader, imageNtHeaders):
         """Parses the sections in the memory and returns a list of them"""
         sections = []
-        offset = imageDosHeader.header.e_lfanew + sizeof(self._peClasses.IMAGE_NT_HEADERS) # start reading behind the dos- and ntheaders 
+        offset = imageDosHeader.header.e_lfanew + sizeof(self._classes.IMAGE_NT_HEADERS) # start reading behind the dos- and ntheaders 
         image_section_header_size = sizeof(IMAGE_SECTION_HEADER)
 
         for sectionNo in range(imageNtHeaders.header.FileHeader.NumberOfSections):
@@ -447,16 +456,16 @@ class PE(Binary):
         data_directory_data_list = [None for i in range(15)]
 
         # parse DataDirectory[Export]
-        export_data_directory = imageNtHeaders.header.OptionalHeader.DataDirectory[ImageDirectoryEntry.EXPORT.value]
+        export_data_directory = imageNtHeaders.header.OptionalHeader.DataDirectory[ImageDirectoryEntry.EXPORT]
         export_section = self._getSectionForDataDirectoryEntry(export_data_directory, sections)
         export_data_directory_data = self._parseDataDirectoryExport(data, export_data_directory, export_section)
-        data_directory_data_list[ImageDirectoryEntry.EXPORT.value] = export_data_directory_data
+        data_directory_data_list[ImageDirectoryEntry.EXPORT] = export_data_directory_data
 
         # parse DataDirectory[Import]
-        import_data_directory = imageNtHeaders.header.OptionalHeader.DataDirectory[ImageDirectoryEntry.IMPORT.value]
+        import_data_directory = imageNtHeaders.header.OptionalHeader.DataDirectory[ImageDirectoryEntry.IMPORT]
         import_section = self._getSectionForDataDirectoryEntry(import_data_directory, sections)
         import_data_directory_data = self._parseDataDirectoryImport(import_data_directory, import_section)
-        data_directory_data_list[ImageDirectoryEntry.IMPORT.value] = import_data_directory_data
+        data_directory_data_list[ImageDirectoryEntry.IMPORT] = import_data_directory_data
 
         return data_directory_data_list
 
@@ -464,19 +473,27 @@ class PE(Binary):
         """Parses the EmportDataDirectory and returns an instance of ExportDirectoryData"""
         if not exportSection:
             return
-        function_names = []    
+        functions = []    
         export_directory = IMAGE_EXPORT_DIRECTORY.from_buffer(exportSection.raw, to_offset(dataDirectoryEntry.VirtualAddress, exportSection))
         name = get_str(exportSection.raw, to_offset(export_directory.Name, exportSection))
 
-        addressOffsetOfNames = to_offset(export_directory.AddressOfNames, exportSection)
-
-        for i in range(export_directory.NumberOfFunctions):
-            name_address = c_uint.from_buffer(exportSection.raw, addressOffsetOfNames).value
+        offsetOfNames = to_offset(export_directory.AddressOfNames, exportSection)
+        offsetOfAddress = to_offset(export_directory.AddressOfFunctions, exportSection)
+        offsetOfNameOrdinals = to_offset(export_directory.AddressOfNameOrdinals, exportSection)
+        for i in range(export_directory.NumberOfNames):
+            name_address = c_uint.from_buffer(exportSection.raw, offsetOfNames).value
             name_offset = to_offset(name_address, exportSection)
-            print(get_str(exportSection.raw, name_offset))
 
-        return ExportDirectoryData(header=export_directory, name=name)
+            func_name = get_str(exportSection.raw, name_offset)
+            ordinal = c_ushort.from_buffer(exportSection.raw, offsetOfNameOrdinals).value
+            func_addr = c_uint.from_buffer(exportSection.raw, offsetOfAddress).value
 
+            offsetOfNames += 4
+            offsetOfAddress += 4
+            offsetOfNameOrdinals += 2
+            functions.append(FunctionData(name=func_name, rva=func_addr, ordinal=ordinal))
+
+        return ExportDirectoryData(header=export_directory, name=name, functions=functions)
 
     def _parseDataDirectoryImport(self, dataDirectoryEntry, importSection):
         """Parses the ImportDataDirectory and returns a list of ImportDescriptorData"""
@@ -496,7 +513,7 @@ class PE(Binary):
                 break
             else:
                 nameOffset = to_offset(import_descriptor.Name, importSection)
-                dllName = str(get_ptr(importSection.raw, nameOffset, c_char_p).value, 'ASCII')
+                dllName = get_str(importSection.raw, nameOffset, c_char_p)
                 import_name_table =  self.__parseThunks(import_descriptor.OriginalFirstThunk, importSection)
                 import_address_table =  self.__parseThunks(import_descriptor.FirstThunk, importSection)
 
