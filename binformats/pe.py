@@ -513,7 +513,7 @@ class PE(Binary):
                 break
             else:
                 nameOffset = to_offset(import_descriptor.Name, importSection)
-                dllName = get_str(importSection.raw, nameOffset, c_char_p)
+                dllName = get_str(importSection.raw, nameOffset)
                 import_name_table =  self.__parseThunks(import_descriptor.OriginalFirstThunk, importSection)
                 import_address_table =  self.__parseThunks(import_descriptor.FirstThunk, importSection)
 
