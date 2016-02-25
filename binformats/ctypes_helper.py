@@ -33,7 +33,7 @@ def get_ptr(data, offset=None, ptr_type=ctypes.c_void_p):
     return ptr
 
 def get_str(data, offset=None):
-    return str(get_ptr(data, offset, c_char_p).value, 'ASCII')
+    return str(get_ptr(data, offset, ctypes.c_char_p).value, 'ASCII')
 
 def to_ubyte_array(barray):
     """Returns a c_ubyte_array filled with the given data of a bytearray or bytes"""
