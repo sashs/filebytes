@@ -174,6 +174,20 @@ class IMAGE_IMPORT_DESCRIPTOR(Structure):
                 ('Name', c_uint),
                 ('FirstThunk', c_uint)]
 
+class IMAGE_EXPORT_DIRECTORY(Structure):
+    _fields_ = [('Characteristics',c_uint),
+                ('TimeDateStamp',c_uint),
+                ('MajorVersion', c_ushort),
+                ('MinorVersion', c_ushort),
+                ('Name',c_uint),
+                ('Base',c_uint),
+                ('NumberOfFunctions',c_uint),
+                ('NumberOfNames',c_uint),
+                ('AddressOfFunctions',c_uint),
+                ('AddressOfNames',c_uint),
+                ('AddressOfNameOrdinals',c_uint)
+                ]
+
 ##################### PE32 ########################
 
 class IMAGE_OPTIONAL_HEADER(Structure):
@@ -264,6 +278,13 @@ class PE64(object):
 ##################### Container ###################
 
 
+def to_offset(addr, section):
+    return addr - section.header.VirtualAddress
+
+def to_raw_address(addr, section):
+        """Converts the addr from a rva to a pointer to raw data in the file"""
+        return addr - section.header.VirtualAddress + section.header.PointerToRawData
+
 class ImageDosHeaderData(Container):
     """
     header = IMAGE_DOS_HEADER
@@ -308,6 +329,11 @@ class ThunkData(Container):
     rva = relative virtual address of thunk
     ordinal = None | Ordinal
     importByName = None| ImportByNameData
+    """
+
+class ExportDirectoryData(Container):
+    """
+    header = IMAGE_EXPORT_DIRECTORY
     """
 
 class PE(Binary):
@@ -374,6 +400,23 @@ class PE(Binary):
 
         return classes      
 
+    def _parseImageDosHeader(self, data):
+        """Returns the ImageDosHeader"""
+        ioh = IMAGE_DOS_HEADER.from_buffer(data)
+        if ioh.e_magic != b'MZ':
+            raise BinaryError('No valid PE/COFF file')
+
+        return ImageDosHeaderData(header=ioh)
+
+    def _parseImageNtHeaders(self, data, imageDosHeader):
+        """Returns the ImageNtHeaders"""
+        inth = self._peClasses.IMAGE_NT_HEADERS.from_buffer(data, imageDosHeader.header.e_lfanew)
+
+        if inth.Signature != b'PE':
+            raise BinaryError('No valid PE/COFF file')
+
+        return ImageNtHeaderData(header=inth)
+
     def _parseSections(self, data, imageDosHeader, imageNtHeaders):
         """Parses the sections in the memory and returns a list of them"""
         sections = []
@@ -391,61 +434,78 @@ class PE(Binary):
 
         return sections
 
-    def _toRawAddress(self, addr, section):
-        """Converts the addr from a rva to a pointer to raw data in the file"""
-        return addr - section.header.VirtualAddress + section.header.PointerToRawData
-
-    def _toOffset(self, addr, section):
-        return addr - section.header.VirtualAddress
+    def _getSectionForDataDirectoryEntry(self, data_directory_entry, sections):
+        """Returns the section which contains the data of DataDirectory"""
+        for section in sections:
+            if data_directory_entry.VirtualAddress >= section.header.VirtualAddress and \
+            data_directory_entry.VirtualAddress < section.header.VirtualAddress + section.header.SizeOfRawData :
+                
+                return section
 
     def _parseDataDirectory(self, data, sections, imageNtHeaders):
         """Parses the entries of the DataDirectory and returns a list of the content"""
-        dataDirectoryDataList = [None for i in range(15)]
+        data_directory_data_list = [None for i in range(15)]
 
-        importDataDirectory = imageNtHeaders.header.OptionalHeader.DataDirectory[ImageDirectoryEntry.IMPORT.value]
-        dataDirectoryImport = self._parseDataDirectoryImport(data, importDataDirectory, sections)
+        # parse DataDirectory[Export]
+        export_data_directory = imageNtHeaders.header.OptionalHeader.DataDirectory[ImageDirectoryEntry.EXPORT.value]
+        export_section = self._getSectionForDataDirectoryEntry(export_data_directory, sections)
+        export_data_directory_data = self._parseDataDirectoryExport(data, export_data_directory, export_section)
+        data_directory_data_list[ImageDirectoryEntry.EXPORT.value] = export_data_directory_data
 
-        dataDirectoryDataList[ImageDirectoryEntry.IMPORT.value] = dataDirectoryImport
+        # parse DataDirectory[Import]
+        import_data_directory = imageNtHeaders.header.OptionalHeader.DataDirectory[ImageDirectoryEntry.IMPORT.value]
+        import_section = self._getSectionForDataDirectoryEntry(import_data_directory, sections)
+        import_data_directory_data = self._parseDataDirectoryImport(import_data_directory, import_section)
+        data_directory_data_list[ImageDirectoryEntry.IMPORT.value] = import_data_directory_data
 
-        return dataDirectoryDataList
+        return data_directory_data_list
+
+    def _parseDataDirectoryExport(self, data, dataDirectoryEntry, exportSection):
+        """Parses the EmportDataDirectory and returns an instance of ExportDirectoryData"""
+        if not exportSection:
+            return
+        function_names = []    
+        export_directory = IMAGE_EXPORT_DIRECTORY.from_buffer(exportSection.raw, to_offset(dataDirectoryEntry.VirtualAddress, exportSection))
+        name = get_str(exportSection.raw, to_offset(export_directory.Name, exportSection))
+
+        addressOffsetOfNames = to_offset(export_directory.AddressOfNames, exportSection)
+
+        for i in range(export_directory.NumberOfFunctions):
+            name_address = c_uint.from_buffer(exportSection.raw, addressOffsetOfNames).value
+            name_offset = to_offset(name_address, exportSection)
+            print(get_str(exportSection.raw, name_offset))
+
+        return ExportDirectoryData(header=export_directory, name=name)
 
 
-    def _parseDataDirectoryImport(self, data, dataDirectoryEntry, sections):
-        """Parses the ImportDataDirectory and returns a list of ImageDirectoryData"""
-        importSection = None
-        for section in sections:
-            if dataDirectoryEntry.VirtualAddress >= section.header.VirtualAddress and \
-            dataDirectoryEntry.VirtualAddress < section.header.VirtualAddress + section.header.SizeOfRawData :
-                
-                importSection = section
-                break
-
+    def _parseDataDirectoryImport(self, dataDirectoryEntry, importSection):
+        """Parses the ImportDataDirectory and returns a list of ImportDescriptorData"""
         if not importSection:
             return
 
-        rawPointer = self._toRawAddress(dataDirectoryEntry.VirtualAddress, section)
-        rawBytes = (c_ubyte * dataDirectoryEntry.Size).from_buffer(importSection.raw, self._toOffset(dataDirectoryEntry.VirtualAddress, section))
+
+        raw_bytes = (c_ubyte * dataDirectoryEntry.Size).from_buffer(importSection.raw, to_offset(dataDirectoryEntry.VirtualAddress, importSection))
         offset = 0
-        importDescriptors = []
+        import_descriptors = []
 
         while True:
-            importDescriptor = IMAGE_IMPORT_DESCRIPTOR.from_buffer(rawBytes, offset)
+            import_descriptor = IMAGE_IMPORT_DESCRIPTOR.from_buffer(raw_bytes, offset)
             offset += sizeof(IMAGE_IMPORT_DESCRIPTOR)
 
-            if importDescriptor.OriginalFirstThunk == 0:
+            if import_descriptor.OriginalFirstThunk == 0:
                 break
             else:
-                nameOffset = self._toOffset(importDescriptor.Name, importSection)
+                nameOffset = to_offset(import_descriptor.Name, importSection)
                 dllName = str(get_ptr(importSection.raw, nameOffset, c_char_p).value, 'ASCII')
-                importNameTable =  self.__parseThunks(importDescriptor.OriginalFirstThunk, importSection)
-                importAddressTable =  self.__parseThunks(importDescriptor.FirstThunk, importSection)
+                import_name_table =  self.__parseThunks(import_descriptor.OriginalFirstThunk, importSection)
+                import_address_table =  self.__parseThunks(import_descriptor.FirstThunk, importSection)
 
-                importDescriptors.append(ImportDescriptorData(header=importDescriptor, dllName=dllName, importNameTable=importNameTable, importAddressTable=importAddressTable))
-        return importDescriptors
+                import_descriptors.append(ImportDescriptorData(header=import_descriptor, dllName=dllName, importNameTable=import_name_table, importAddressTable=import_address_table))
+        return import_descriptors
 
     def __parseThunks(self, thunkRVA, importSection):
         """Parses the thunks and returns a list"""
-        offset = self._toOffset(thunkRVA, importSection)
+        offset = to_offset(thunkRVA, importSection)
         thunks = []
         while True:
             thunk = IMAGE_THUNK_DATA.from_buffer(importSection.raw, offset)
@@ -460,30 +520,13 @@ class PE(Binary):
         """Parses the data of a thunk and sets the data"""
         tmpRVA = firstThunkRVA
         
-        offset = self._toOffset(thunk.header.AddressOfData, importSection)
+        offset = to_offset(thunk.header.AddressOfData, importSection)
         if 0xf0000000 & thunk.header.AddressOfData == 0x80000000:
             thunk.oridnal = thunk.header.AddressOfData & 0x0fffffff
         else:
             ibn = IMAGE_IMPORT_BY_NAME.from_buffer(importSection.raw, offset)
             name = get_str(importSection.raw, offset+2)
             thunk.importByName = ImportByNameData(header=ibn.Hint, name=name)
-
-    def _parseImageDosHeader(self, data):
-        """Returns the ImageDosHeader"""
-        ioh = IMAGE_DOS_HEADER.from_buffer(data)
-        if ioh.e_magic != b'MZ':
-            raise BinaryError('No valid PE/COFF file')
-
-        return ImageDosHeaderData(header=ioh)
-
-    def _parseImageNtHeaders(self, data, imageDosHeader):
-        """Returns the ImageNtHeaders"""
-        inth = self._peClasses.IMAGE_NT_HEADERS.from_buffer(data, imageDosHeader.header.e_lfanew)
-
-        if inth.Signature != b'PE':
-            raise BinaryError('No valid PE/COFF file')
-
-        return ImageNtHeaderData(header=inth)
 
     @classmethod
     def isSupportedContent(cls, fileContent):
