@@ -1,6 +1,6 @@
 # coding=utf-8
 #
-# Copyright 2014 Sascha Schirra
+# Copyright 2016 Sascha Schirra
 #
 # This file is part of filebytes.
 #
