@@ -372,62 +372,10 @@ class PE(Binary):
         elif machine == IMAGE_FILE_MACHINE.AMD64:
             classes = PE64
 
-        return classes
-
-    @property
-    def executableSections(self):
-    #    toReturn = [self.sections['.text']]
-        toReturn = []
-        for section in self.sectionHeader:
-            if section.Characteristics & IMAGE_SCN.CNT_CODE > 0:
-                if section.Name in self.sections:
-                    toReturn.append(self.sections[section.Name])
-                else:
-                    p_tmp = c_void_p(self._bytes_p.value + section.PointerToRawData)
-                    size = section.PhysicalAddress_or_VirtualSize
-                    ibytes = cast(p_tmp, POINTER(c_ubyte * size)).contents
-                    s = Section(section.Name, ibytes, section.VirtualAddress + self.imageBase, section.VirtualAddress)
-                    self.sections[section.Name] = s
-                    toReturn.append(s)
-        return toReturn
-
-    @property
-    def dataSections(self):
-        toReturn = []
-        for section in self.sectionHeader:
-            if section.Characteristics & IMAGE_SCN.CNT_INITIALIZED_DATA or section.Characteristics & IMAGE_SCN.CNT_UNINITIALIZED_DATA:
-                p_tmp = c_void_p(self._bytes_p.value + section.PointerToRawData)
-                size = section.PhysicalAddress_or_VirtualSize
-                ibytes = cast(p_tmp, POINTER(c_ubyte * size)).contents
-                s = Section(section.Name, ibytes, section.VirtualAddress + self.imageBase, section.VirtualAddress)
-
-                toReturn.append(s)
-        return toReturn
-
-
-    def getWriteableSection(self):
-        for section in self.sectionHeader:
-            if section.Characteristics & IMAGE_SCN.MEM_WRITE:
-                p_tmp = c_void_p(self._bytes_p.value + section.PointerToRawData)
-                size = section.PhysicalAddress_or_VirtualSize
-                ibytes = cast(p_tmp, POINTER(c_ubyte * size)).contents
-                s = Section(section.Name, ibytes, section.VirtualAddress + self.imageBase, section.VirtualAddress)
-
-                return s
-
-    def getSection(self, name):
-        
-        for section in self.sectionHeader:
-            if str(section.Name) == name:
-                p_tmp = c_void_p(self._bytes_p.value + section.PointerToRawData)
-                size = section.PhysicalAddress_or_VirtualSize
-                ibytes = cast(p_tmp, POINTER(c_ubyte * size)).contents
-                s = Section(section.Name, ibytes, section.VirtualAddress + self.imageBase, section.VirtualAddress)
-
-                return s
-        raise RopperError('No such secion: %s' % name)        
+        return classes      
 
     def _parseSections(self, data, imageDosHeader, imageNtHeaders):
+        """Parses the sections in the memory and returns a list of them"""
         sections = []
         offset = imageDosHeader.header.e_lfanew + sizeof(self._peClasses.IMAGE_NT_HEADERS) # start reading behind the dos- and ntheaders 
         image_section_header_size = sizeof(IMAGE_SECTION_HEADER)
@@ -463,6 +411,7 @@ class PE(Binary):
 
 
     def _parseDataDirectoryImport(self, data, dataDirectoryEntry, sections):
+        """Parses the ImportDataDirectory and returns a list of ImageDirectoryData"""
         importSection = None
         for section in sections:
             if dataDirectoryEntry.VirtualAddress >= section.header.VirtualAddress and \
@@ -495,6 +444,7 @@ class PE(Binary):
         return importDescriptors
 
     def __parseThunks(self, thunkRVA, importSection):
+        """Parses the thunks and returns a list"""
         offset = self._toOffset(thunkRVA, importSection)
         thunks = []
         while True:
@@ -507,6 +457,7 @@ class PE(Binary):
         return thunks
 
     def __parseThunkData(self, thunk, firstThunkRVA, importSection):
+        """Parses the data of a thunk and sets the data"""
         tmpRVA = firstThunkRVA
         
         offset = self._toOffset(thunk.header.AddressOfData, importSection)
@@ -518,6 +469,7 @@ class PE(Binary):
             thunk.importByName = ImportByNameData(header=ibn.Hint, name=name)
 
     def _parseImageDosHeader(self, data):
+        """Returns the ImageDosHeader"""
         ioh = IMAGE_DOS_HEADER.from_buffer(data)
         if ioh.e_magic != b'MZ':
             raise BinaryError('No valid PE/COFF file')
@@ -525,6 +477,7 @@ class PE(Binary):
         return ImageDosHeaderData(header=ioh)
 
     def _parseImageNtHeaders(self, data, imageDosHeader):
+        """Returns the ImageNtHeaders"""
         inth = self._peClasses.IMAGE_NT_HEADERS.from_buffer(data, imageDosHeader.header.e_lfanew)
 
         if inth.Signature != b'PE':
