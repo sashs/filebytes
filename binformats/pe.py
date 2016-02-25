@@ -263,13 +263,6 @@ class PE64(object):
 
 ##################### Container ###################
 
-class ImageImportDescriptorData(Container):
-
-    """
-    header = IMAGE_IMPORT_DESCRIPTOR
-    dll = string (dll name)
-    functions = list (imported function names)
-    """
 
 class ImageDosHeaderData(Container):
     """
@@ -294,7 +287,7 @@ class DataDirectoryData(Container):
     header = IMAGE_DATA_DIRECTORY
     """
 
-class ImportData(Container):
+class ImportDescriptorData(Container):
     """
     header = IMAGE_IMPORT_DESCRIPTOR
     dllName = name of dll (str)
@@ -302,10 +295,19 @@ class ImportData(Container):
     importAddressTable = list of IMAGE_THUNK_DATA
     """
 
+class ImportByNameData(Container):
+    """
+    header = IMAGE_IMPORT_BY_NAME
+    name = name of function (str)
+    """
+
+
 class ThunkData(Container):
     """
     header = IMAGE_THUNK_DATA
     rva = relative virtual address of thunk
+    ordinal = None | Ordinal
+    importByName = None| ImportByNameData
     """
 
 class PE(Binary):
@@ -343,16 +345,25 @@ class PE(Binary):
     def sections(self):
         return self.__sections
     
+    @property
+    def dataDirectory(self):
+        return self.__dataDirectory
+    
 
     @property
     def entryPoint(self):
         return self.imageNtHeaders.OptionalHeader.ImageBase + self.imageNtHeaders.OptionalHeader.AddressOfEntryPoint
 
     @property
+    def imageBase(self):
+        return self.imageNtHeaders.OptionalHeader.ImageBase
+
+    @property
     def type(self):
         return 'PE'
 
     def _getSuitablePeClasses(self, data, imageDosHeader):
+        """Returns the class which holds the suitable classes for the loaded file"""
         classes = None
         machine = IMAGE_FILE_MACHINE(c_ushort.from_buffer(data,imageDosHeader.header.e_lfanew+4).value)
 
@@ -362,9 +373,6 @@ class PE(Binary):
             classes = PE64
 
         return classes
-
-
-        
 
     @property
     def executableSections(self):
@@ -419,9 +427,6 @@ class PE(Binary):
                 return s
         raise RopperError('No such secion: %s' % name)        
 
-    def _getImageBase(self):
-        return self.imageNtHeaders.OptionalHeader.ImageBase
-
     def _parseSections(self, data, imageDosHeader, imageNtHeaders):
         sections = []
         offset = imageDosHeader.header.e_lfanew + sizeof(self._peClasses.IMAGE_NT_HEADERS) # start reading behind the dos- and ntheaders 
@@ -439,15 +444,23 @@ class PE(Binary):
         return sections
 
     def _toRawAddress(self, addr, section):
+        """Converts the addr from a rva to a pointer to raw data in the file"""
         return addr - section.header.VirtualAddress + section.header.PointerToRawData
 
     def _toOffset(self, addr, section):
         return addr - section.header.VirtualAddress
 
     def _parseDataDirectory(self, data, sections, imageNtHeaders):
-        
+        """Parses the entries of the DataDirectory and returns a list of the content"""
+        dataDirectoryDataList = [None for i in range(15)]
+
         importDataDirectory = imageNtHeaders.header.OptionalHeader.DataDirectory[ImageDirectoryEntry.IMPORT.value]
-        self._parseDataDirectoryImport(data, importDataDirectory, sections)
+        dataDirectoryImport = self._parseDataDirectoryImport(data, importDataDirectory, sections)
+
+        dataDirectoryDataList[ImageDirectoryEntry.IMPORT.value] = dataDirectoryImport
+
+        return dataDirectoryDataList
+
 
     def _parseDataDirectoryImport(self, data, dataDirectoryEntry, sections):
         importSection = None
@@ -464,6 +477,7 @@ class PE(Binary):
         rawPointer = self._toRawAddress(dataDirectoryEntry.VirtualAddress, section)
         rawBytes = (c_ubyte * dataDirectoryEntry.Size).from_buffer(importSection.raw, self._toOffset(dataDirectoryEntry.VirtualAddress, section))
         offset = 0
+        importDescriptors = []
 
         while True:
             importDescriptor = IMAGE_IMPORT_DESCRIPTOR.from_buffer(rawBytes, offset)
@@ -474,12 +488,13 @@ class PE(Binary):
             else:
                 nameOffset = self._toOffset(importDescriptor.Name, importSection)
                 dllName = str(get_ptr(importSection.raw, nameOffset, c_char_p).value, 'ASCII')
-                importNameTable =  self.__loadThunks(importDescriptor.OriginalFirstThunk, importSection)
-                importAddressTable =  self.__loadThunks(importDescriptor.FirstThunk, importSection)
-                #functions = self.__loadThunkData(importNameTable, section)
-                
+                importNameTable =  self.__parseThunks(importDescriptor.OriginalFirstThunk, importSection)
+                importAddressTable =  self.__parseThunks(importDescriptor.FirstThunk, importSection)
 
-    def __loadThunks(self, thunkRVA, importSection):
+                importDescriptors.append(ImportDescriptorData(header=importDescriptor, dllName=dllName, importNameTable=importNameTable, importAddressTable=importAddressTable))
+        return importDescriptors
+
+    def __parseThunks(self, thunkRVA, importSection):
         offset = self._toOffset(thunkRVA, importSection)
         thunks = []
         while True:
@@ -487,77 +502,20 @@ class PE(Binary):
             offset += sizeof(IMAGE_THUNK_DATA)
             if thunk.Ordinal == 0:
                 break
+            thunkData = ThunkData(header=thunk, rva=offset+importSection.header.VirtualAddress, ordinal=None, importByName=None)
             thunks.append(thunk)
         return thunks
 
-    def __parseThunkData(self, thunks, thunkRVA):
-        contents = []
-        tmpRVA = thunkRVA
-        for thunk in thunks:
-            if 0xf0000000 & thunk.AddressOfData == 0x80000000:
-                contents.append((thunk.AddressOfData & 0x0fffffff,'', tmpRVA))
-                tmpRVA += sizeof(self.__pe_module.IMAGE_THUNK_DATA)
-                continue
-            p_thunk_address_of_data = c_void_p(thunk.AddressOfData - diff)
-
-            ibn = cast(
-                p_thunk_address_of_data, POINTER(self.__pe_module.IMAGE_IMPORT_BY_NAME)).contents
-            p_thunk_address_of_data.value += 2
-            self.assertFileRange(p_thunk_address_of_data.value)
-            name = cast(p_thunk_address_of_data, c_char_p)
-            contents.append((ibn.Hint, name.value, tmpRVA))
-            tmpRVA += sizeof(self.__pe_module.IMAGE_THUNK_DATA)
-        return contents
-
-    def __parseThunkContent(self, thunks, diff, thunkRVA):
-        contents = []
-        tmpRVA = thunkRVA
-        for thunk in thunks:
-            if 0xf0000000 & thunk.AddressOfData == 0x80000000:
-                contents.append((thunk.AddressOfData & 0x0fffffff,'', tmpRVA))
-                tmpRVA += sizeof(self.__pe_module.IMAGE_THUNK_DATA)
-                continue
-            p_thunk_address_of_data = c_void_p(thunk.AddressOfData - diff)
-
-            ibn = cast(
-                p_thunk_address_of_data, POINTER(self.__pe_module.IMAGE_IMPORT_BY_NAME)).contents
-            p_thunk_address_of_data.value += 2
-            self.assertFileRange(p_thunk_address_of_data.value)
-            name = cast(p_thunk_address_of_data, c_char_p)
-            contents.append((ibn.Hint, name.value, tmpRVA))
-            tmpRVA += sizeof(self.__pe_module.IMAGE_THUNK_DATA)
-        return contents
-
-    def __parseImports(self, section, p_bytes, size):
-        ibytes = cast(p_bytes, POINTER(c_ubyte * size)).contents
-        s = Section('.idata', ibytes, section.VirtualAddress + self.imageBase, section.VirtualAddress)
-        self.sections[s.name] = s
-        s.importDescriptorTable = []
-        idataRVA = section.VirtualAddress
-        idataFAddr = section.PointerToRawData + self._bytes_p.value
-        s.header = section
-
-        while True:
-
-            self.assertFileRange(p_bytes.value)
-            importDescriptor = cast(
-                p_bytes, POINTER(self.__pe_module.IMAGE_IMPORT_DESCRIPTOR)).contents
-            p_bytes.value += sizeof(self.__pe_module.IMAGE_IMPORT_DESCRIPTOR)
-            if importDescriptor.OriginalFirstThunk == 0:
-                break
-
-            else:
-                dllNameAddr = c_void_p(
-                    importDescriptor.Name - idataRVA + idataFAddr)
-                dllName = cast(dllNameAddr, c_char_p)
-                importNameTable = self.__loadThunks(
-                    importDescriptor.OriginalFirstThunk - idataRVA + idataFAddr)
-                importAddressTable = self.__loadThunks(
-                    importDescriptor.FirstThunk - idataRVA + idataFAddr)
-                functions = self.__parseThunkContent(
-                    importNameTable, idataRVA - idataFAddr, importDescriptor.FirstThunk)
-                s.importDescriptorTable.append(ImageImportDescriptorData(
-                    struct=importDescriptor, dll=dllName.value, functions=functions, importNameTable=importNameTable, importAddressTable=importAddressTable))
+    def __parseThunkData(self, thunk, firstThunkRVA, importSection):
+        tmpRVA = firstThunkRVA
+        
+        offset = self._toOffset(thunk.header.AddressOfData, importSection)
+        if 0xf0000000 & thunk.header.AddressOfData == 0x80000000:
+            thunk.oridnal = thunk.header.AddressOfData & 0x0fffffff
+        else:
+            ibn = IMAGE_IMPORT_BY_NAME.from_buffer(importSection.raw, offset)
+            name = get_str(importSection.raw, offset+2)
+            thunk.importByName = ImportByNameData(header=ibn.Hint, name=name)
 
     def _parseImageDosHeader(self, data):
         ioh = IMAGE_DOS_HEADER.from_buffer(data)
@@ -574,9 +532,6 @@ class PE(Binary):
 
         return ImageNtHeaderData(header=inth)
 
-        
-        
-            
     @classmethod
     def isSupportedContent(cls, fileContent):
         """Returns if the files are valid for this filetype"""
