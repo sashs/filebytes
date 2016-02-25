@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from binformats import elf,pe,mach_o
+from filebytes import elf,pe,mach_o
 
 efile = elf.ELF('test-binaries/ls-x86')
 print("Segments:")
@@ -29,9 +29,10 @@ for dataDirectory in pefile.dataDirectory:
 
 print()
 export = pefile.dataDirectory[pe.ImageDirectoryEntry.EXPORT.value]
-print(export.name)
-for func in export.functions:
-    print(func.name, hex(func.rva))
+if export:
+    print(export.name)
+    for func in export.functions:
+        print(func.name, hex(func.rva))
 
 
 machfile = mach_o.MachO('test-binaries/ls-macho-x86_64')
