@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from binformats import elf,pe
+from binformats import elf,pe,mach_o
 
 efile = elf.ELF('test-binaries/ls-x86')
 print("Segments:")
@@ -10,7 +10,7 @@ for segment in efile.segments:
 print()
 print('Sections:')
 for section in efile.sections:
-    if elf.SHT(section.header.sh_type) == elf.SHT.DYNAMIC:
+    if section.header.sh_type == elf.SHT.DYNAMIC:
         print(section.name, len(section.content), section.content)
 
 print()
@@ -22,6 +22,24 @@ print(hex(pefile.imageNtHeaders.header.OptionalHeader.ImageBase))
 for section in pefile.sections:
     print(section.name)
 
+print()
+for dataDirectory in pefile.dataDirectory:
+    print(dataDirectory)
+
+
+print()
+export = pefile.dataDirectory[pe.ImageDirectoryEntry.EXPORT.value]
+print(export.name)
+for func in export.functions:
+    print(func.name, hex(func.rva))
+
+
+machfile = mach_o.MachO('test-binaries/ls-macho-x86_64')
+print()
+print(machfile.machHeader)
+for loadCommand in machfile.loadCommands:
+    if loadCommand.header.cmd == mach_o.LC.SEGMENT or loadCommand.header.cmd == mach_o.LC.SEGMENT_64:
+        print(loadCommand.sections)
 # print()
 # print('Symbols:')
 # for section in efile.sections:
