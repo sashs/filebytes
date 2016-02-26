@@ -29,7 +29,7 @@ segments = elf_file.segments # elf_file.programHeaders does the same
 Parsing PE file
 ```python
 from filebytes.pe import *
-pe_file = ELF('test-binaries/cmd-x86.exe')
+pe_file = PE('test-binaries/cmd-x86.exe')
 
 image_dos_header = pe_file.imageDosHeader
 image_nt_headers = pe_file.imageNtHeaders
