@@ -63,4 +63,4 @@ But any kind of contribution is welcome. :)
 
 Project page
 ------------------------------------
-https://scoding.de/
+https://scoding.de/projects/
