@@ -504,7 +504,6 @@ class PE(Binary):
         raw_bytes = (c_ubyte * dataDirectoryEntry.Size).from_buffer(importSection.raw, to_offset(dataDirectoryEntry.VirtualAddress, importSection))
         offset = 0
         import_descriptors = []
-
         while True:
             import_descriptor = IMAGE_IMPORT_DESCRIPTOR.from_buffer(raw_bytes, offset)
             offset += sizeof(IMAGE_IMPORT_DESCRIPTOR)
@@ -514,6 +513,7 @@ class PE(Binary):
             else:
                 nameOffset = to_offset(import_descriptor.Name, importSection)
                 dllName = get_str(importSection.raw, nameOffset)
+
                 import_name_table =  self.__parseThunks(import_descriptor.OriginalFirstThunk, importSection)
                 import_address_table =  self.__parseThunks(import_descriptor.FirstThunk, importSection)
 
@@ -530,16 +530,16 @@ class PE(Binary):
             if thunk.Ordinal == 0:
                 break
             thunkData = ThunkData(header=thunk, rva=offset+importSection.header.VirtualAddress, ordinal=None, importByName=None)
-            thunks.append(thunk)
+            if to_offset(thunk.AddressOfData, importSection) < len(self._bytes):
+                self.__parseThunkData(thunkData, importSection)
+            thunks.append(thunkData)
         return thunks
 
-    def __parseThunkData(self, thunk, firstThunkRVA, importSection):
+    def __parseThunkData(self, thunk,importSection):
         """Parses the data of a thunk and sets the data"""
-        tmpRVA = firstThunkRVA
-        
         offset = to_offset(thunk.header.AddressOfData, importSection)
         if 0xf0000000 & thunk.header.AddressOfData == 0x80000000:
-            thunk.oridnal = thunk.header.AddressOfData & 0x0fffffff
+            thunk.ordinal = thunk.header.AddressOfData & 0x0fffffff
         else:
             ibn = IMAGE_IMPORT_BY_NAME.from_buffer(importSection.raw, offset)
             name = get_str(importSection.raw, offset+2)
