@@ -4,7 +4,7 @@ FileBytes
 Scripts to parse the following file formats:
 - Executable and Linkage Format (ELF),
 - Portable Executable (PE) and
-- Mach-O
+- MachO
 
 Install
 -------
@@ -50,6 +50,16 @@ load_commands = macho_file.loadCommands
 ```
 
 For further samples look at the sample folder.
+
+Contributions
+----------------------
+If you would like contribute, here some ideas:
+- Implementation of parsing of missing LoadCommand types for MachO files
+- Implementation of parsing of the missing section types for ELF files
+- Implementation of parsing of the missing data directory fields for PE files
+
+But any kind of contribution is welcome. :)
+
 
 Project page
 ------------------------------------
