@@ -138,6 +138,8 @@ class S_ATTR(Enum):
     SOME_INSTRUCTIONS = 0x00000400
     PURE_INSTRUCTIONS = 0x80000000
 
+class LcStr(Union):
+    _fields_ = [('offset', c_uint)]
 
 class LoadCommand(LittleEndianStructure):
     _fields_ = [('cmd', c_uint),
@@ -159,9 +161,24 @@ class TwoLevelHint(LittleEndianStructure):
     _fields_ = [('isub_image', c_uint),
                 ('itoc', c_uint)]
 
-class LcStr(Union):
-    _fields_ = [('offset', c_uint)]
+class Dylib(LittleEndianStructure):
+    _fields_ = [('name', LcStr),
+                ('timestamp', c_uint),
+                ('current_version', c_uint),
+                ('compatibility_version', c_uint),
+                ]
 
+class DylibCommand(LittleEndianStructure):
+    _fields_ = [('cmd', c_uint),
+                ('cmdsize', c_uint),
+                ('dylib', Dylib),
+                ]
+
+class DylinkerCommand(LittleEndianStructure):
+    _fields_ = [('cmd', c_uint),
+                ('cmdsize', c_uint),
+                ('name', LcStr)
+                ]
 
 ########################### 32 BIT Structures ###########################
 
@@ -268,13 +285,34 @@ class MachHeaderData(Container):
 class LoadCommandData(Container):
     """
     header = LoaderCommand
-    [sections = list of SectionData]
+    bytes = bytes of the command bytearray
+    raw = bytes of the command c_ubyte_array
+
+    SegmentCommand
+    sections = list of SectionData
+
+    UuidCommand
+    uuid = uuid (str)
+
+    TwoLevelHintsCommand
+    twoLevelHints = list of TwoLevelHintData
+
+    DylibCommand
+    name = name of dylib (str)
+
+    DylinkerCommand
+    name = name of dynamic linker
     """
 
 class SectionData(Container):
     """
     header = Section
 
+    """
+
+class TwoLevelHintData(Container):
+    """
+    header = TwoLevelHint
     """
 
 class MachO(Binary):
@@ -301,8 +339,6 @@ class MachO(Binary):
     def loadCommands(self):
         return self.__loadCommands
     
-    
-
     @property
     def entryPoint(self):
         return 0x0
@@ -333,28 +369,59 @@ class MachO(Binary):
         load_commands = []
         for i in range(machHeader.header.ncmds):
             command = LoadCommand.from_buffer(data, offset)
+            raw = (c_ubyte * command.cmdsize).from_buffer(data, offset)
 
             if command.cmd == LC.SEGMENT or command.cmd == LC.SEGMENT_64:
-                command = self.__parseSegmentCommand(data, offset)
+                command = self.__parseSegmentCommand(data, offset, raw)
             elif command.cmd == LC.UUID:
-                command = self.__parseUuidCommand(data, offset)
+                command = self.__parseUuidCommand(data, offset, raw)
+            elif command.cmd == LC.TWOLEVEL_HINTS:
+                command = self.__parseTwoLevelHintCommand(data, offset, raw)
+            elif command.cmd in (LC.ID_DYLIB, LC.LOAD_DYLIB, LC.LOAD_WEAK_DYLIB):
+                command = self.__parseDylibCommand(data, offset, raw)
+            elif command.cmd in (LC.ID_DYLINKER, LC.LOAD_DYLINKER):
+                command = self.__parseDylibCommand(data, offset, raw)
             else:
                 command = LoadCommandData(header=command)
-            
+
             load_commands.append(command)
 
             offset += command.header.cmdsize
 
         return load_commands
 
-    def __parseSegmentCommand(self, data, offset):
+    def __parseSegmentCommand(self, data, offset, raw):
         sc = self._classes.SegmentCommand.from_buffer(data, offset)
         sections = self.__parseSections(data, sc, offset+sizeof(self._classes.SegmentCommand))
-        return LoadCommandData(header=sc, name=str(sc.segname, 'ASCII'), sections=sections)
+        return LoadCommandData(header=sc, name=str(sc.segname, 'ASCII'), sections=sections, bytes=bytearray(raw), raw=raw)
 
-    def __parseUuidCommand(self, data, offset):
+    def __parseUuidCommand(self, data, offset, raw):
         uc = UuidCommand.from_buffer(data, offset)
-        return LoadCommandData(header=uc, uuid=hexlify(uc.uuid))
+        return LoadCommandData(header=uc, uuid=hexlify(uc.uuid), bytes=bytearray(raw), raw=raw)
+
+    def __parseTwoLevelHintCommand(self, data, offset, raw):
+        tlhc = TwoLevelHintsCommand.from_buffer(data, offset)
+        hints = self.__parseTwoLevelHints(data, tlhc)
+        return LoadCommandData(header=tlhc, twoLevelHints=hints, bytes=bytearray(raw), raw=raw)
+
+    def __parseTwoLevelHints(self, data, twoLevelHintCommand):
+        offset = twoLevelHintCommand.offset
+        hints = []
+        for i in twoLevelHintCommand.nhints:
+            tlh = TwoLevelHint.from_buffer(data, offset)
+            hints.append(TwoLevelHintData(header=tlh))
+
+        return hints
+
+    def __parseDylibCommand(self, data, offset, raw):
+        dc = DylibCommand.from_buffer(data, offset)
+        name = get_str(raw, dc.dylib.name.offset)
+        return LoadCommandData(header=dc, bytes=bytearray(raw), raw=raw, name=name)
+
+    def __parseDylinkerCommand(self, data, offset, raw):
+        dc = DylinkerCommand.from_buffer(data, offset)
+        name = get_str(raw, dc.name.offset)
+        return LoadCommandData(header=dc, bytes=bytearray(raw), raw=raw, name=name)
 
     def __parseSections(self, data, segment, offset):
         
