@@ -267,7 +267,7 @@ class MachHeaderData(Container):
 class LoadCommandData(Container):
     """
     header = LoaderCommand
-
+    [sections = list of SectionData]
     """
 
 class SectionData(Container):
@@ -286,7 +286,7 @@ class MachO(Binary):
             raise BinaryError('Bad architecture')
 
         self.__machHeader = self._parseMachHeader(self._bytes)
-        self.loadCommands = self._parseLoadCommands(self._bytes, self.machHeader)
+        self.__loadCommands = self._parseLoadCommands(self._bytes, self.machHeader)
 
     @property
     def _classes(self):
@@ -295,6 +295,11 @@ class MachO(Binary):
     @property
     def machHeader(self):
         return self.__machHeader
+
+    @property
+    def loadCommands(self):
+        return self.__loadCommands
+    
     
 
     @property
