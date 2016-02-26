@@ -19,6 +19,7 @@
 from struct import pack as p
 from .enum import Enum
 from .binary import *
+from binascii import hexlify
 ############# MachO General ######################
 
 class VM_PROT(Enum):
@@ -334,12 +335,15 @@ class MachO(Binary):
             command = LoadCommand.from_buffer(data, offset)
 
             if command.cmd == LC.SEGMENT or command.cmd == LC.SEGMENT_64:
-                seg_command = self.__parseSegmentCommand(data, offset)
-                load_commands.append(seg_command)
+                command = self.__parseSegmentCommand(data, offset)
+            elif command.cmd == LC.UUID:
+                command = self.__parseUuidCommand(data, offset)
             else:
-                load_commands.append(LoadCommandData(header=command))
+                command = LoadCommandData(header=command)
+            
+            load_commands.append(command)
 
-            offset += command.cmdsize
+            offset += command.header.cmdsize
 
         return load_commands
 
@@ -347,6 +351,10 @@ class MachO(Binary):
         sc = self._classes.SegmentCommand.from_buffer(data, offset)
         sections = self.__parseSections(data, sc, offset+sizeof(self._classes.SegmentCommand))
         return LoadCommandData(header=sc, name=str(sc.segname, 'ASCII'), sections=sections)
+
+    def __parseUuidCommand(self, data, offset):
+        uc = UuidCommand.from_buffer(data, offset)
+        return LoadCommandData(header=uc, uuid=hexlify(uc.uuid))
 
     def __parseSections(self, data, segment, offset):
         
