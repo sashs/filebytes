@@ -1,5 +1,4 @@
 from setuptools import setup, find_packages
-import ropper
 
 version = 0.8.0
 package_name = "filebytes"
