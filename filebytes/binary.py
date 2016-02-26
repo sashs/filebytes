@@ -33,7 +33,6 @@ class Binary(object):
     def __init__(self, fileName, fileContent=None):
         
         self._bytes = to_ubyte_array(fileContent) if fileContent else self._readFile(fileName)
-        print(self._bytes)
         if not self.__class__.isSupportedContent(self._bytes):
             raise BinaryError('Not a suitable filetype')
 
