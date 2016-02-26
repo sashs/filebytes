@@ -40,6 +40,9 @@ def print_executable_segments_information(elf_file):
 
 def main():
     elf_file = ELF('test-binaries/ls-x86')
+    # also
+    b = open('test-binaries/ls-x86','rb').read()
+    elf_file = ELF('any name', b)
 
     print_header_information(elf_file)
     print_section_information(elf_file)
