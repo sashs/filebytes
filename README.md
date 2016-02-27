@@ -50,6 +50,18 @@ mach_header = macho_file.machHeader
 load_commands = macho_file.loadCommands
 ```
 
+Parsing OAT file and extrax DEX
+```
+from filebytes.oat import *
+
+oat = OAT('test-binaries/boot.oat')
+
+for odh in oat.oatDexHeader:
+    name = odh.name.split('/')[-1]
+    with open(name, 'wb') as dex:
+        dex.write(odh.dexBytes)
+```
+
 For further samples look at the sample folder.
 
 Contributions
