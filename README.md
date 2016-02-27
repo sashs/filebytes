@@ -5,6 +5,7 @@ Scripts to parse the following file formats:
 - Executable and Linkage Format (ELF),
 - Portable Executable (PE) and
 - MachO
+- OAT (Android Runtime)
 
 Install
 -------
