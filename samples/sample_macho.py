@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 from filebytes.mach_o import *
 
 def print_header_information(macho_file):
