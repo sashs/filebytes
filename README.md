@@ -55,7 +55,7 @@ load_commands = macho_file.loadCommands
 ```
 
 Parsing OAT file and extrax DEX
-```
+```python
 from filebytes.oat import *
 
 oat = OAT('test-binaries/boot.oat')
