@@ -5,6 +5,7 @@ Scripts to parse the following file formats:
 - Executable and Linkage Format (ELF),
 - Portable Executable (PE) and
 - MachO
+- OAT (Android Runtime)
 
 Install
 -------
@@ -12,6 +13,10 @@ Install
 Install FileBytes
 
     $ python setup.py install
+
+Or install with PyPi
+
+    $ pip install filebytes
 
 Samples
 -------
@@ -47,6 +52,18 @@ macho_file = MachO('test-binaries/ls-macho-x86_64')
 
 mach_header = macho_file.machHeader
 load_commands = macho_file.loadCommands
+```
+
+Parsing OAT file and extrax DEX
+```
+from filebytes.oat import *
+
+oat = OAT('test-binaries/boot.oat')
+
+for odh in oat.oatDexHeader:
+    name = odh.name.split('/')[-1]
+    with open(name, 'wb') as dex:
+        dex.write(odh.dexBytes)
 ```
 
 For further samples look at the sample folder.
