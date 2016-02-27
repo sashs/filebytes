@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = '0.9.0'
+version = '0.9.1'
 package_name = "filebytes"
 package_dir = "filebytes"
 package_description = """
@@ -24,7 +24,7 @@ setup(
     author_email="sashs@scoding.de",
     url="http://github.com/sashs/filebytes/",
     classifiers=[
-        'Topic :: Software Development',
+        'Topic :: Security',
         'Environment :: Console',
         'Operating System :: OS Independent',
         'License :: OSI Approved :: GNU General Public License v2 (GPLv2)',

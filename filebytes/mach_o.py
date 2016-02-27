@@ -393,7 +393,7 @@ class MachO(Binary):
     def __parseSegmentCommand(self, data, offset, raw):
         sc = self._classes.SegmentCommand.from_buffer(data, offset)
         sections = self.__parseSections(data, sc, offset+sizeof(self._classes.SegmentCommand))
-        return LoadCommandData(header=sc, name=str(sc.segname, 'ASCII'), sections=sections, bytes=bytearray(raw), raw=raw)
+        return LoadCommandData(header=sc, name=sc.segname.decode('ASCII'), sections=sections, bytes=bytearray(raw), raw=raw)
 
     def __parseUuidCommand(self, data, offset, raw):
         uc = UuidCommand.from_buffer(data, offset)

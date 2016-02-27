@@ -437,7 +437,7 @@ class PE(Binary):
             size = ishdr.PhysicalAddress_or_VirtualSize
             raw = (c_ubyte * size).from_buffer(data, ishdr.PointerToRawData)
 
-            sections.append(SectionData(header=ishdr, name=str(ishdr.Name, 'ASCII'), bytes=bytearray(raw), raw=raw))
+            sections.append(SectionData(header=ishdr, name=ishdr.Name.decode('ASCII'), bytes=bytearray(raw), raw=raw))
 
             offset += image_section_header_size
 
