@@ -4,10 +4,8 @@ version = '0.9.0'
 package_name = "filebytes"
 package_dir = "filebytes"
 package_description = """
-Scripts to parse the following file formats:
-- Executable and Linkage Format (ELF),
-- Portable Executable (PE) and
-- Mach-O
+Scripts to parse the following file formats
+- Executable and Linkage Format (ELF), Portable Executable (PE), Mach-O and OAT (Android Runtime).
 """.strip()
 
 packages = find_packages()
