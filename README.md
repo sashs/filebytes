@@ -14,6 +14,10 @@ Install FileBytes
 
     $ python setup.py install
 
+Or install with PyPi
+
+    $ pip install filebytes
+
 Samples
 -------
 
