@@ -54,7 +54,7 @@ mach_header = macho_file.machHeader
 load_commands = macho_file.loadCommands
 ```
 
-Parsing OAT file and extrax DEX
+Parsing OAT file, read DEX files and save them
 ```python
 from filebytes.oat import *
 
