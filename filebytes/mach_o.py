@@ -430,7 +430,8 @@ class MachO(Binary):
             sec = self._classes.Section.from_buffer(data, offset)
 
             offset += sizeof(self._classes.Section)
-            sections.append(SectionData(header=sec))
+            raw = (c_ubyte * sec.size).from_buffer(data, sec.offset)
+            sections.append(SectionData(header=sec, name=sec.sectname.decode('ASCII'),bytes=bytearray(raw), raw=raw))
 
         return sections
     
