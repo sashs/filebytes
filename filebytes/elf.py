@@ -898,7 +898,7 @@ class ELF(Binary):
             phdr = self.__classes.PHDR.from_buffer(data, offset)
             segment_bytes = (c_ubyte * phdr.p_filesz).from_buffer(data, phdr.p_offset)
 
-            phdrData = PhdrData(header=phdr, raw=segment_bytes, bytes=bytearray(segment_bytes), type=PT[phdr.p_type].name, vaddr=phdr.p_vaddr, offset=phdr.p_offset)
+            phdrData = PhdrData(header=phdr, raw=segment_bytes, bytes=bytearray(segment_bytes), type=PT[phdr.p_type], vaddr=phdr.p_vaddr, offset=phdr.p_offset)
             segments.append(phdrData)
 
             offset += elfHeader.header.e_phentsize
@@ -931,10 +931,8 @@ class ELF(Binary):
     def _parseSymbols(self, sections):
         """Sets a list of symbols in each DYNSYM and SYMTAB section"""
         for section in sections:
-            sh_type = SHT[section.header.sh_type]
             strtab = sections[section.header.sh_link]
-
-            if sh_type in (SHT.DYNSYM, SHT.SYMTAB):
+            if section.header.sh_type in (int(SHT.DYNSYM), int(SHT.SYMTAB)):
                 section.symbols = self.__parseSymbolEntriesForSection(section, strtab)
 
 
