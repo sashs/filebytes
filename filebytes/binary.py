@@ -78,7 +78,7 @@ class Binary(object):
     def isSupportedFile(cls, fileName):
         try:
             with open(fileName, 'rb') as f:
-                return isSupportedContent(file.read())
+                return cls.isSupportedContent(f.read())
         except BaseException as e:
             raise BinaryError(e)
 
