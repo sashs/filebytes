@@ -344,6 +344,15 @@ class MachO(Binary):
         return 0x0
 
     @property
+    def imageBase(self):
+        for loadCommand in self.loadCommands:
+            if loadCommand.header.cmd == LC.SEGMENT or loadCommand.header.cmd == LC.SEGMENT_64:
+                for section in loadCommand.sections:
+                    if section.header.flags & S_ATTR.SOME_INSTRUCTIONS  or section.header.flags & S_ATTR.PURE_INSTRUCTIONS:
+                        return section.header.addr - section.header.offset
+        return 0x0
+
+    @property
     def type(self):
         return 'MachO'
 
@@ -434,17 +443,7 @@ class MachO(Binary):
             sections.append(SectionData(header=sec, name=sec.sectname.decode('ASCII'),bytes=bytearray(raw), raw=raw))
 
         return sections
-    
-    def _getImageBase(self):
-        if self.__imageBase == None:
-            es = self.executableSections[0]
-            if es != None:
-
-                self.__imageBase = es.virtualAddress - es.offset
-            else:
-                self.__imageBase = 0x0
-        return self.__imageBase
-
+   
     @classmethod
     def isSupportedContent(cls, fileContent):
         """Returns if the files are valid for this filetype"""

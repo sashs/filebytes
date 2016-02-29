@@ -78,9 +78,11 @@ class IntEnumElement(EnumElement):
     def __cmp__(self, other):
         if isinstance(other, EnumElement):
             return self.value - other.value
-        else:
+        elif isinstance(other, int) or isinstance(other, long):
             return self.value - other
-
+        else:
+            return 1
+            
     def __lt__(self, other):
         return self.__cmp__(other) < 0
 
