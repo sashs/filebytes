@@ -1,8 +1,8 @@
 FileBytes
 ================
 
-Scripts to parse the following file formats:
-- Executable and Linkage Format (ELF),
+Classes/Types to read and edit the following file formats:
+- Executable and Linking Format (ELF),
 - Portable Executable (PE) and
 - MachO
 - OAT (Android Runtime)

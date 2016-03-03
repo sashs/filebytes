@@ -1,11 +1,11 @@
 from setuptools import setup, find_packages
 
-version = '0.9.3'
+version = '0.9.4'
 package_name = "filebytes"
 package_dir = "filebytes"
 package_description = """
 Scripts to parse the following file formats
-- Executable and Linkage Format (ELF), Portable Executable (PE), Mach-O and OAT (Android Runtime).
+- Executable and Linking Format (ELF), Portable Executable (PE), Mach-O and OAT (Android Runtime).
 """.strip()
 
 packages = find_packages()

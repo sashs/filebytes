@@ -958,13 +958,13 @@ class ELF(Binary):
             self.__parseSymbols()
 
         for section in sections:
-            if SHN[section.header.sh_link] != SHN.UNDEF and SHT[section.header.sh_type] in (SHT.REL, SHT.RELA):
+            if section.header.sh_link != SHN.UNDEF and section.header.sh_type in (SHT.REL, SHT.RELA):
                 symbols = sections[section.header.sh_link].symbols
                 relocations = self.__parseRelocationEntries(section, symbols)
                 section.relocations = relocations
 
     def __parseRelocationEntries(self, section, symbols):
-        struct = self.__classes.REL if SHT[section.header.sh_type] == SHT.REL else self.__classes.RELA
+        struct = self.__classes.REL if section.header.sh_type == SHT.REL else self.__classes.RELA
         struct_size = sizeof(struct)
         offset = 0
         entries = []
@@ -985,7 +985,7 @@ class ELF(Binary):
         for section in sections:
             offset = 0
             dyns = []
-            if SHT[section.header.sh_type] == SHT.DYNAMIC:
+            if section.header.sh_type == SHT.DYNAMIC:
                 for i in range(int(len(section.bytes) / dyn_size)):
                     dyn = self._classes.DYN.from_buffer(section.raw, offset)
                     dyns.append(DynamicData(header=dyn, tag=DT[dyn.d_tag]))
@@ -998,14 +998,14 @@ class ELF(Binary):
     def _parseDynamicTags(self, dyns, sections):
         
         for dyn in dyns:
-            if dyn.tag == DT.NEEDED:
+            if dyn.header.d_tag == DT.NEEDED:
                 self.__parseDynamicTagNeeded(dyn, dyns, sections)
 
 
     def __parseDynamicTagNeeded(self, dyn, dyns, sections):
         dyn_strtab = None
         for d in dyns:
-            if d.tag == DT.STRTAB:
+            if d.header.d_tag == DT.STRTAB:
                 dyn_strtab = d
 
         if not dyn_strtab:

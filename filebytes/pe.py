@@ -387,11 +387,11 @@ class PE(Binary):
 
     @property
     def entryPoint(self):
-        return self.imageNtHeaders.OptionalHeader.ImageBase + self.imageNtHeaders.OptionalHeader.AddressOfEntryPoint
+        return self.imageNtHeaders.header.OptionalHeader.ImageBase + self.imageNtHeaders.header.OptionalHeader.AddressOfEntryPoint
 
     @property
     def imageBase(self):
-        return self.imageNtHeaders.OptionalHeader.ImageBase
+        return self.imageNtHeaders.header.OptionalHeader.ImageBase
 
     @property
     def type(self):
@@ -530,7 +530,7 @@ class PE(Binary):
             if thunk.Ordinal == 0:
                 break
             thunkData = ThunkData(header=thunk, rva=offset+importSection.header.VirtualAddress, ordinal=None, importByName=None)
-            if to_offset(thunk.AddressOfData, importSection) < len(self._bytes):
+            if to_offset(thunk.AddressOfData, importSection) > 0 and to_offset(thunk.AddressOfData, importSection) < len(self._bytes):
                 self.__parseThunkData(thunkData, importSection)
             thunks.append(thunkData)
         return thunks
