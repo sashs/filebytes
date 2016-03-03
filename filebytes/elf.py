@@ -862,7 +862,7 @@ class ELF(Binary):
 
     @property
     def entryPoint(self):
-        return self.__elfheader.header.e_entry
+        return self.elfHeader.header.e_entry
 
     @property
     def imageBase(self):
