@@ -569,8 +569,8 @@ class MSB_32():
     RELA = MSB_32_RELA
     SYM = MSB_32_SYM
     DYN = MSB_32_DYN
-    R_SYM = MSB_32_R_SYM
-    R_TYPE = MSB_32_R_TYPE
+    R_SYM = staticmethod(MSB_32_R_SYM)
+    R_TYPE = staticmethod(MSB_32_R_TYPE)
 
 ########################### 64 BIT Types ###########################
 
@@ -667,8 +667,8 @@ class LSB_64():
     RELA = LSB_64_RELA
     SYM = LSB_64_SYM
     DYN = LSB_64_DYN
-    R_SYM = LSB_64_R_SYM
-    R_TYPE = LSB_64_R_TYPE
+    R_SYM = staticmethod(LSB_64_R_SYM)
+    R_TYPE = staticmethod(LSB_64_R_TYPE)
 
 ########################### MSB 64 BIT Structures ###########################
 
@@ -754,8 +754,8 @@ class MSB_64():
     RELA = MSB_64_RELA
     SYM = MSB_64_SYM
     DYN = MSB_64_DYN
-    R_SYM = MSB_64_R_SYM
-    R_TYPE = MSB_64_R_TYPE
+    R_SYM = staticmethod(MSB_64_R_SYM)
+    R_TYPE = staticmethod(MSB_64_R_TYPE)
 
 ################################ ELF File Implementation #########################################
 
