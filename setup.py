@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = '0.9.6'
+version = '0.9.7'
 package_name = "filebytes"
 package_dir = "filebytes"
 package_description = """
@@ -22,7 +22,7 @@ setup(
     license="GPLv2",
     author="Sascha Schirra",
     author_email="sashs@scoding.de",
-    url="http://github.com/sashs/filebytes/",
+    url="https://scoding.de/filebytes-introduction/",
     classifiers=[
         'Topic :: Security',
         'Environment :: Console',
