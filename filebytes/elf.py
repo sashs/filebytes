@@ -483,8 +483,8 @@ class LSB_32():
     RELA = LSB_32_RELA
     SYM = LSB_32_SYM
     DYN = LSB_32_DYN
-    R_SYM = LSB_32_R_SYM
-    R_TYPE = LSB_32_R_TYPE
+    R_SYM = staticmethod(LSB_32_R_SYM)
+    R_TYPE = staticmethod(LSB_32_R_TYPE)
 
 ########################### MSB 32 BIT Structures ###########################
 
@@ -836,7 +836,7 @@ class ELF(Binary):
         self.__sections = self._parseSections(self._bytes, self.elfHeader)
         self._parseSymbols(self.sections)
         self._parseDynamic(self.sections)
-        self.relocations = {}
+        self._parseRelocations(self.sections)
         
     @property
     def _classes(self):
@@ -954,9 +954,6 @@ class ELF(Binary):
 
     def _parseRelocations(self, sections):
         """Parses the relocations and add those to the section"""
-        if len(self.symbols) == 0:
-            self.__parseSymbols()
-
         for section in sections:
             if section.header.sh_link != SHN.UNDEF and section.header.sh_type in (SHT.REL, SHT.RELA):
                 symbols = sections[section.header.sh_link].symbols
