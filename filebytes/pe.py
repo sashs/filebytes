@@ -543,7 +543,7 @@ class PE(Binary):
         else:
             ibn = IMAGE_IMPORT_BY_NAME.from_buffer(importSection.raw, offset)
             name = get_str(importSection.raw, offset+2)
-            thunk.importByName = ImportByNameData(header=ibn.Hint, name=name)
+            thunk.importByName = ImportByNameData(header=ibn, hint=ibn.Hint, name=name)
 
     @classmethod
     def isSupportedContent(cls, fileContent):
