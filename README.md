@@ -41,8 +41,8 @@ image_nt_headers = pe_file.imageNtHeaders
 sections = pe_file.sections
 data_directory = pe_file.dataDirectory
 
-import_directory = pe_file[ImageDirectoryEntry.IMPORT]
-export_directory = pe_file[ImageDirectoryEntry.EXPORT]
+import_directory = data_directory[ImageDirectoryEntry.IMPORT]
+export_directory = data_directory[ImageDirectoryEntry.EXPORT]
 ```
 
 Parsing MachO file
