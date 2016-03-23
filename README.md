@@ -78,6 +78,7 @@ If you would like contribute, here some ideas:
 But any kind of contribution is welcome. :)
 
 
-Project page
+Project page & Examples
 ------------------------------------
 https://scoding.de/filebytes-introduction/
+https://scoding.de/filebytes-edit-files/
