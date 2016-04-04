@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
-
-version = '0.9.8'
+import filebytes
+version = filebytes.VERSION
 package_name = "filebytes"
 package_dir = "filebytes"
 package_description = """
