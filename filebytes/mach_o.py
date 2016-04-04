@@ -139,29 +139,35 @@ class S_ATTR(Enum):
     PURE_INSTRUCTIONS = 0x80000000
 
 class LcStr(Union):
+    _pack_ = 4
     _fields_ = [('offset', c_uint)]
 
 class LoadCommand(LittleEndianStructure):
+    _pack_ = 4
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint)]
 
 
 class UuidCommand(LittleEndianStructure):
+    _pack_ = 4
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('uuid', c_ubyte * 16)]
 
 class TwoLevelHintsCommand(LittleEndianStructure):
+    _pack_ = 4
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('offset', c_uint),
                 ('nhints', c_uint)]
 
 class TwoLevelHint(LittleEndianStructure):
+    _pack_ = 4
     _fields_ = [('isub_image', c_uint),
                 ('itoc', c_uint)]
 
 class Dylib(LittleEndianStructure):
+    _pack_ = 4
     _fields_ = [('name', LcStr),
                 ('timestamp', c_uint),
                 ('current_version', c_uint),
@@ -169,12 +175,14 @@ class Dylib(LittleEndianStructure):
                 ]
 
 class DylibCommand(LittleEndianStructure):
+    _pack_ = 4
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('dylib', Dylib),
                 ]
 
 class DylinkerCommand(LittleEndianStructure):
+    _pack_ = 4
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('name', LcStr)
@@ -183,6 +191,7 @@ class DylinkerCommand(LittleEndianStructure):
 ########################### 32 BIT Structures ###########################
 
 class LSB_32_MachHeader(LittleEndianStructure):
+    _pack_ = 4
     _fields_ = [('magic', c_uint),
                 ('cputype', c_uint),
                 ('cpusubtype', c_uint),
@@ -194,6 +203,7 @@ class LSB_32_MachHeader(LittleEndianStructure):
 
 
 class LSB_32_SegmentCommand(LittleEndianStructure):
+    _pack_ = 4
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('segname', c_char * 16),
@@ -208,6 +218,7 @@ class LSB_32_SegmentCommand(LittleEndianStructure):
 
 
 class LSB_32_Section(LittleEndianStructure):
+    _pack_ = 4
     _fields_ = [('sectname', c_char * 16),
                 ('segname', c_char * 16),
                 ('addr', c_uint),
@@ -229,6 +240,7 @@ class LSB_32(object):
 ########################### 64 BIT Structures ###########################
 
 class LSB_64_MachHeader(LittleEndianStructure):
+    _pack_ = 8
     _fields_ = [('magic', c_uint),
                 ('cputype', c_uint),
                 ('cpusubtype', c_uint),
@@ -241,6 +253,7 @@ class LSB_64_MachHeader(LittleEndianStructure):
 
 
 class LSB_64_SegmentCommand(LittleEndianStructure):
+    _pack_ = 8
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('segname', c_char * 16),
@@ -255,6 +268,7 @@ class LSB_64_SegmentCommand(LittleEndianStructure):
 
 
 class LSB_64_Section(LittleEndianStructure):
+    _pack_ = 8
     _fields_ = [('sectname', c_char * 16),
                 ('segname', c_char * 16),
                 ('addr', c_ulonglong),
@@ -437,8 +451,11 @@ class MachO(Binary):
         sections = []
         for i in range(segment.nsects):
             sec = self._classes.Section.from_buffer(data, offset)
+            if self._classes.Section == LSB_64_Section:
+                offset += 80
+            else:
+                offset += sizeof(self._classes.Section)
 
-            offset += sizeof(self._classes.Section)
             raw = (c_ubyte * sec.size).from_buffer(data, sec.offset)
             sections.append(SectionData(header=sec, name=sec.sectname.decode('ASCII'),bytes=bytearray(raw), raw=raw))
 
