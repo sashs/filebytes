@@ -506,7 +506,7 @@ class PE(Binary):
         import_descriptors = []
         while True:
             import_descriptor = IMAGE_IMPORT_DESCRIPTOR.from_buffer(raw_bytes, offset)
-            offset += sizeof(IMAGE_IMPORT_DESCRIPTOR)
+            
 
             if import_descriptor.OriginalFirstThunk == 0:
                 break
@@ -518,21 +518,24 @@ class PE(Binary):
                 import_address_table =  self.__parseThunks(import_descriptor.FirstThunk, importSection)
 
                 import_descriptors.append(ImportDescriptorData(header=import_descriptor, dllName=dllName, importNameTable=import_name_table, importAddressTable=import_address_table))
+            offset += sizeof(IMAGE_IMPORT_DESCRIPTOR)
         return import_descriptors
 
     def __parseThunks(self, thunkRVA, importSection):
         """Parses the thunks and returns a list"""
         offset = to_offset(thunkRVA, importSection)
+        table_offset = 0
         thunks = []
         while True:
             thunk = IMAGE_THUNK_DATA.from_buffer(importSection.raw, offset)
             offset += sizeof(IMAGE_THUNK_DATA)
             if thunk.Ordinal == 0:
                 break
-            thunkData = ThunkData(header=thunk, rva=offset+importSection.header.VirtualAddress, ordinal=None, importByName=None)
+            thunkData = ThunkData(header=thunk, rva=table_offset+thunkRVA,ordinal=None, importByName=None)
             if to_offset(thunk.AddressOfData, importSection) > 0 and to_offset(thunk.AddressOfData, importSection) < len(self._bytes):
                 self.__parseThunkData(thunkData, importSection)
             thunks.append(thunkData)
+            table_offset += 4
         return thunks
 
     def __parseThunkData(self, thunk,importSection):
