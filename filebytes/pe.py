@@ -80,9 +80,10 @@ class ImageDllCharacteristics(Enum):
     NO_ISOLATION = 0x0200
     NO_SEH = 0x0400
     NO_BIND = 0x0800
+    APP_CONTAINER = 0x1000
     WDM_DRIVER = 0x2000
+    CONTROL_FLOW_GUARD = 0x4000
     TERMINAL_SERVER_AWARE = 0x8000
-    CONTROL_FLOW_GUARD = 0xc000
 
 
 class ImageDirectoryEntry(Enum):
@@ -188,6 +189,10 @@ class IMAGE_EXPORT_DIRECTORY(Structure):
                 ('AddressOfNameOrdinals',c_uint)
                 ]
 
+class GUARD_CFF_ENTRY(Structure):
+    _fields_ = [('rva',c_uint),
+                ('flag', c_byte)]
+
 ##################### PE32 ########################
 
 class IMAGE_OPTIONAL_HEADER(Structure):
@@ -232,6 +237,35 @@ class PE32_IMAGE_NT_HEADERS(Structure):
 class PE32(object):
     IMAGE_NT_HEADERS = PE32_IMAGE_NT_HEADERS
 
+
+class IMAGE_LOAD_CONFIG_DIRECTORY32(Structure):
+    _fields_ = [('Size', c_uint),
+                ('TimeDateStamp', c_uint),
+                ('MajorVersion', c_ushort),
+                ('MinorVersion', c_ushort),
+                ('GlobalFlagsClear', c_uint),
+                ('GlobalFlagsSet', c_uint),
+                ('CriticalSectionDefaultTimeout', c_uint),
+                ('DeCommitFreeBLockThreshold', c_uint),
+                ('DeCommitTotalFreeThreshold', c_uint),
+                ('LockPrefixTable', c_uint),
+                ('MaximumAllocationSize', c_uint),
+                ('VirtualMemoryThreshold', c_uint),
+                ('ProcessHeapFlags', c_uint),
+                ('ProcessAffinityMask', c_uint),
+                ('CSDVersion', c_ushort),
+                ('Reserved1', c_ushort),
+                ('EditList', c_uint),
+                ('SecurityCookie', c_uint),
+                ('SEHandlerTable', c_uint),
+                ('SEHandlerCount', c_uint),
+                ('GuardCFCheckFunctionPointer', c_uint),
+                ('Reserved2', c_uint),
+                ('GuardCFFunctionTable', c_uint),
+                ('GuardCFFunctionCount', c_uint),
+                ('GuardFlags', c_uint)]
+
+
 ######################### PE64 ########################
 
 class IMAGE_OPTIONAL_HEADER_PE32_PLUS(Structure):
@@ -274,6 +308,34 @@ class PE64_IMAGE_NT_HEADERS(Structure):
 
 class PE64(object):
     IMAGE_NT_HEADERS = PE64_IMAGE_NT_HEADERS
+
+
+class IMAGE_LOAD_CONFIG_DIRECTORY64(Structure):
+    _fields_ = [('Size', c_uint),
+                ('TimeDateStamp', c_uint),
+                ('MajorVersion', c_ushort),
+                ('MinorVersion', c_ushort),
+                ('GlobalFlagsClear', c_uint),
+                ('GlobalFlagsSet', c_uint),
+                ('CriticalSectionDefaultTimeout', c_uint),
+                ('DeCommitFreeBLockThreshold', c_ulonglong),
+                ('DeCommitTotalFreeThreshold', c_ulonglong),
+                ('LockPrefixTable', c_ulonglong),
+                ('MaximumAllocationSize', c_ulonglong),
+                ('VirtualMemoryThreshold', c_ulonglong),
+                ('ProcessAffinityMask', c_ulonglong),
+                ('ProcessHeapFlags', c_uint),
+                ('CSDVersion', c_ushort),
+                ('Reserved1', c_ushort),
+                ('EditList', c_ulonglong),
+                ('SecurityCookie', c_ulonglong),
+                ('SEHandlerTable', c_ulonglong),
+                ('SEHandlerCount', c_ulonglong),
+                ('GuardCFCheckFunctionPointer', c_ulonglong),
+                ('Reserved2', c_ulonglong),
+                ('GuardCFFunctionTable', c_ulonglong),
+                ('GuardCFFunctionCount', c_ulonglong),
+                ('GuardFlags', c_uint)]
 
 ##################### Container ###################
 
@@ -336,6 +398,12 @@ class ExportDirectoryData(Container):
     header = IMAGE_EXPORT_DIRECTORY
     name = name of dll (str)
     functions = list of FunctionData
+    """
+
+class LoadConfigData(Container):
+    """"
+    header = IMAGE_LOAD_CONFIG_DIRECTORY32/IMAGE_LOAD_CONFIG_DIRECTORY64
+    cfGuardedFunctions = list of relative virtual addresses (RVA) of cfg allowed call/jmp targets
     """
 
 class FunctionData(Container):
@@ -467,6 +535,12 @@ class PE(Binary):
         import_data_directory_data = self._parseDataDirectoryImport(import_data_directory, import_section)
         data_directory_data_list[ImageDirectoryEntry.IMPORT] = import_data_directory_data
 
+        # parse DataDirectory[LOAD_CONFIG]
+        loadconfig_data_directory = imageNtHeaders.header.OptionalHeader.DataDirectory[ImageDirectoryEntry.LOAD_CONFIG]
+        loadconfig_section = self._getSectionForDataDirectoryEntry(loadconfig_data_directory, sections)
+        loadconfig_data = self._parseLoadConfig(loadconfig_data_directory, loadconfig_section)
+        data_directory_data_list[ImageDirectoryEntry.LOAD_CONFIG] = loadconfig_data
+
         return data_directory_data_list
 
     def _parseDataDirectoryExport(self, data, dataDirectoryEntry, exportSection):
@@ -520,6 +594,44 @@ class PE(Binary):
                 import_descriptors.append(ImportDescriptorData(header=import_descriptor, dllName=dllName, importNameTable=import_name_table, importAddressTable=import_address_table))
             offset += sizeof(IMAGE_IMPORT_DESCRIPTOR)
         return import_descriptors
+
+    def _getSectionByRVA(self, va):
+        for section in self.sections:
+            address = section.header.VirtualAddress
+            SizeOfRawData = section.header.SizeOfRawData
+            if  address <= va and va < (address + SizeOfRawData):
+                return section
+
+        return
+
+    def _parseLoadConfig(self, loadConfigEntry, loadconfigSection):
+        if self._classes == PE64:
+            load_config_directory = IMAGE_LOAD_CONFIG_DIRECTORY64.from_buffer(
+                loadconfigSection.raw, to_offset(loadConfigEntry.VirtualAddress, loadconfigSection))
+
+            pass
+
+        elif self._classes == PE32:
+            load_config_directory = IMAGE_LOAD_CONFIG_DIRECTORY32.from_buffer(
+                loadconfigSection.raw, to_offset(loadConfigEntry.VirtualAddress, loadconfigSection))
+
+            pass
+        else:
+            pass
+
+        guardCFTableRVA = load_config_directory.GuardCFFunctionTable - self.imageBase
+        section = self._getSectionByRVA(guardCFTableRVA)
+        sectionOffset = guardCFTableRVA - section.header.VirtualAddress
+
+        CfGuardedFunctions = set()
+
+        # loop through the ControlFlow Guard Function table
+        for i in range(0, load_config_directory.GuardCFFunctionCount):
+            cffEntry = GUARD_CFF_ENTRY.from_buffer(section.raw, sectionOffset)
+            CfGuardedFunctions.add(cffEntry.rva)
+            sectionOffset += 5
+
+        return LoadConfigData(header=load_config_directory, cfGuardedFunctions=CfGuardedFunctions )
 
     def __parseThunks(self, thunkRVA, importSection):
         """Parses the thunks and returns a list"""

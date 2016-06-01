@@ -41,7 +41,7 @@ def print_exports(pe_file):
 
 def print_imports(pe_file):
     imports = pe_file.dataDirectory[ImageDirectoryEntry.IMPORT]
-    print('Exports:')
+    print('Imports:')
     if imports:
         for import_ in imports:
             print(import_.dllName+':', 'function count:',len(import_.importNameTable))
@@ -53,6 +53,18 @@ def print_imports(pe_file):
             print()
     else:
         print('No imports')
+    print()
+    print()
+
+
+def print_cf_guarded_functions(pe_file):
+    loadConfig = pe_file.dataDirectory[ImageDirectoryEntry.LOAD_CONFIG]
+    print('CF Guarded Functions:')
+    if loadConfig:
+        for fun in loadConfig.cfGuardedFunctions:
+            print('RVA:', fun)
+    else:
+        print('None')
     print()
     print()
 
