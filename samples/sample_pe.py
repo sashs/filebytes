@@ -57,6 +57,18 @@ def print_imports(pe_file):
     print()
 
 
+def print_cf_guarded_functions(pe_file):
+    loadConfig = pe_file.dataDirectory[ImageDirectoryEntry.LOAD_CONFIG]
+    print('CF Guarded Functions:')
+    if loadConfig:
+        for fun in loadConfig.cfGuardedFunctions:
+            print('RVA:', fun)
+    else:
+        print('None')
+    print()
+    print()
+
+
 def main():
     pe_file = PE('test-binaries/cmd-x86.exe')
     # also
