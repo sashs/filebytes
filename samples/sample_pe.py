@@ -41,7 +41,7 @@ def print_exports(pe_file):
 
 def print_imports(pe_file):
     imports = pe_file.dataDirectory[ImageDirectoryEntry.IMPORT]
-    print('Exports:')
+    print('Imports:')
     if imports:
         for import_ in imports:
             print(import_.dllName+':', 'function count:',len(import_.importNameTable))
