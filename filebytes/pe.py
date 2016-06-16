@@ -403,7 +403,7 @@ class ExportDirectoryData(Container):
 class LoadConfigData(Container):
     """"
     header = IMAGE_LOAD_CONFIG_DIRECTORY32/IMAGE_LOAD_CONFIG_DIRECTORY64
-    cfGuardedFunctions = list of relative virtual addresses (RVA) of cfg allowed call/jmp targets
+    cfGuardedFunctions = list of relative virtual addresses (RVA) of cfg allowed call/jmp targets. Empty if CFG not supported
     """
 
 class FunctionData(Container):
@@ -621,15 +621,15 @@ class PE(Binary):
 
         guardCFTableRVA = load_config_directory.GuardCFFunctionTable - self.imageBase
         section = self._getSectionByRVA(guardCFTableRVA)
-        sectionOffset = guardCFTableRVA - section.header.VirtualAddress
-
         CfGuardedFunctions = set()
+        if section:
+            sectionOffset = guardCFTableRVA - section.header.VirtualAddress
 
-        # loop through the ControlFlow Guard Function table
-        for i in range(0, load_config_directory.GuardCFFunctionCount):
-            cffEntry = GUARD_CFF_ENTRY.from_buffer(section.raw, sectionOffset)
-            CfGuardedFunctions.add(cffEntry.rva)
-            sectionOffset += 5
+            # loop through the ControlFlow Guard Function table
+            for i in range(0, load_config_directory.GuardCFFunctionCount):
+                cffEntry = GUARD_CFF_ENTRY.from_buffer(section.raw, sectionOffset)
+                CfGuardedFunctions.add(cffEntry.rva)
+                sectionOffset += 5
 
         return LoadConfigData(header=load_config_directory, cfGuardedFunctions=CfGuardedFunctions )
 
