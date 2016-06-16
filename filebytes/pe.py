@@ -605,6 +605,9 @@ class PE(Binary):
         return
 
     def _parseLoadConfig(self, loadConfigEntry, loadconfigSection):
+        if not loadconfigSection:
+            return
+            
         if self._classes == PE64:
             load_config_directory = IMAGE_LOAD_CONFIG_DIRECTORY64.from_buffer(
                 loadconfigSection.raw, to_offset(loadConfigEntry.VirtualAddress, loadconfigSection))
