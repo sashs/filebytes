@@ -499,10 +499,10 @@ class PE(Binary):
         sections = []
         offset = imageDosHeader.header.e_lfanew + sizeof(self._classes.IMAGE_NT_HEADERS) # start reading behind the dos- and ntheaders 
         image_section_header_size = sizeof(IMAGE_SECTION_HEADER)
-
+        
         for sectionNo in range(imageNtHeaders.header.FileHeader.NumberOfSections):
             ishdr = IMAGE_SECTION_HEADER.from_buffer(data, offset)
-            size = ishdr.PhysicalAddress_or_VirtualSize
+            size = ishdr.SizeOfRawData
             raw = (c_ubyte * size).from_buffer(data, ishdr.PointerToRawData)
 
             sections.append(SectionData(header=ishdr, name=ishdr.Name.decode('ASCII'), bytes=bytearray(raw), raw=raw))
