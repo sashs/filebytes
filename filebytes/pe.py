@@ -415,11 +415,11 @@ class FunctionData(Container):
 
 class PE(Binary):
 
-    def __init__(self, fileName, fileContent=None):
+    def __init__(self, fileName, fileContent=None, parse_header_only=False):
         super(PE, self).__init__(fileName, fileContent)
 
 
-        
+
         self.__imageDosHeader = self._parseImageDosHeader(self._bytes)
         self.__classes = self._getSuitableClasses(self._bytes, self.imageDosHeader)
 
@@ -427,19 +427,22 @@ class PE(Binary):
             raise BinaryError('Bad architecture')
 
         self.__imageNtHeaders = self._parseImageNtHeaders(self._bytes, self.imageDosHeader)
-        self.__sections = self._parseSections(self._bytes, self.imageDosHeader, self.imageNtHeaders)
+        self.__sections = self._parseSections(self._bytes, self.imageDosHeader, self.imageNtHeaders, parse_header_only=parse_header_only)
 
-        self.__dataDirectory = self._parseDataDirectory(self._bytes, self.sections, self.imageNtHeaders)
-        
-        
+        if parse_header_only:
+            self.__dataDirectory = None
+        else:
+            self.__dataDirectory = self._parseDataDirectory(self._bytes, self.sections, self.imageNtHeaders)
+
+
     @property
     def _classes(self):
         return self.__classes
-    
+
     @property
     def imageDosHeader(self):
         return self.__imageDosHeader
-    
+
     @property
     def imageNtHeaders(self):
         return self.__imageNtHeaders
@@ -447,11 +450,11 @@ class PE(Binary):
     @property
     def sections(self):
         return self.__sections
-    
+
     @property
     def dataDirectory(self):
         return self.__dataDirectory
-    
+
 
     @property
     def entryPoint(self):
@@ -475,7 +478,7 @@ class PE(Binary):
         elif machine == IMAGE_FILE_MACHINE.AMD64:
             classes = PE64
 
-        return classes      
+        return classes
 
     def _parseImageDosHeader(self, data):
         """Returns the ImageDosHeader"""
@@ -494,18 +497,24 @@ class PE(Binary):
 
         return ImageNtHeaderData(header=inth)
 
-    def _parseSections(self, data, imageDosHeader, imageNtHeaders):
+    def _parseSections(self, data, imageDosHeader, imageNtHeaders, parse_header_only=False):
         """Parses the sections in the memory and returns a list of them"""
         sections = []
-        offset = imageDosHeader.header.e_lfanew + sizeof(self._classes.IMAGE_NT_HEADERS) # start reading behind the dos- and ntheaders 
+        offset = imageDosHeader.header.e_lfanew + sizeof(self._classes.IMAGE_NT_HEADERS) # start reading behind the dos- and ntheaders
         image_section_header_size = sizeof(IMAGE_SECTION_HEADER)
-        
+
         for sectionNo in range(imageNtHeaders.header.FileHeader.NumberOfSections):
             ishdr = IMAGE_SECTION_HEADER.from_buffer(data, offset)
-            size = ishdr.SizeOfRawData
-            raw = (c_ubyte * size).from_buffer(data, ishdr.PointerToRawData)
 
-            sections.append(SectionData(header=ishdr, name=ishdr.Name.decode('ASCII'), bytes=bytearray(raw), raw=raw))
+            if parse_header_only:
+                raw = None
+                bytes_ = bytearray()
+            else:
+                size = ishdr.SizeOfRawData
+                raw = (c_ubyte * size).from_buffer(data, ishdr.PointerToRawData)
+                bytes_ = bytearray(raw)
+
+            sections.append(SectionData(header=ishdr, name=ishdr.Name.decode('ASCII', errors='ignore'), bytes=bytes_, raw=raw))
 
             offset += image_section_header_size
 
@@ -516,7 +525,7 @@ class PE(Binary):
         for section in sections:
             if data_directory_entry.VirtualAddress >= section.header.VirtualAddress and \
             data_directory_entry.VirtualAddress < section.header.VirtualAddress + section.header.SizeOfRawData :
-                
+
                 return section
 
     def _parseDataDirectory(self, data, sections, imageNtHeaders):
@@ -547,7 +556,7 @@ class PE(Binary):
         """Parses the EmportDataDirectory and returns an instance of ExportDirectoryData"""
         if not exportSection:
             return
-        functions = []    
+        functions = []
         export_directory = IMAGE_EXPORT_DIRECTORY.from_buffer(exportSection.raw, to_offset(dataDirectoryEntry.VirtualAddress, exportSection))
         name = get_str(exportSection.raw, to_offset(export_directory.Name, exportSection))
 
@@ -580,7 +589,7 @@ class PE(Binary):
         import_descriptors = []
         while True:
             import_descriptor = IMAGE_IMPORT_DESCRIPTOR.from_buffer(raw_bytes, offset)
-            
+
 
             if import_descriptor.OriginalFirstThunk == 0:
                 break
@@ -607,7 +616,7 @@ class PE(Binary):
     def _parseLoadConfig(self, loadConfigEntry, loadconfigSection):
         if not loadconfigSection:
             return
-            
+
         if self._classes == PE64:
             load_config_directory = IMAGE_LOAD_CONFIG_DIRECTORY64.from_buffer(
                 loadconfigSection.raw, to_offset(loadConfigEntry.VirtualAddress, loadconfigSection))
