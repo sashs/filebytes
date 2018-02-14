@@ -18,4 +18,4 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 __all__ = ['elf','pe','mach_o']
-VERSION = '0.9.13'
+VERSION = '0.9.14'
