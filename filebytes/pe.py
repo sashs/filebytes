@@ -500,7 +500,10 @@ class PE(Binary):
     def _parseSections(self, data, imageDosHeader, imageNtHeaders, parse_header_only=False):
         """Parses the sections in the memory and returns a list of them"""
         sections = []
-        offset = imageDosHeader.header.e_lfanew + sizeof(self._classes.IMAGE_NT_HEADERS) # start reading behind the dos- and ntheaders
+
+        optional_header_offset = imageDosHeader.header.e_lfanew + 4 + sizeof(IMAGE_FILE_HEADER)
+        offset = optional_header_offset + imageNtHeaders.header.FileHeader.SizeOfOptionalHeader  # start reading behind the dos- and ntheaders
+
         image_section_header_size = sizeof(IMAGE_SECTION_HEADER)
 
         for sectionNo in range(imageNtHeaders.header.FileHeader.NumberOfSections):
