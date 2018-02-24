@@ -6,3 +6,4 @@ Authors:
 
 Contributers:
 - Matthias Ganz (CFG and loadconfig directory)
+- Roy Halevi (Loading malicious PE files)
