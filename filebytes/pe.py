@@ -413,6 +413,11 @@ class FunctionData(Container):
     rva = relative virtual address of function (int)
     """
 
+def checkOffset(offset, section):
+    size = len(section.raw)
+    if offset < 0 or offset > size:
+        raise BinaryError('Invalid offset: {} (data size: {})'.format(offset, size))
+
 class PE(Binary):
 
     def __init__(self, fileName, fileContent=None, parse_header_only=False):
