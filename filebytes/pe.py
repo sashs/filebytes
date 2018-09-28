@@ -566,7 +566,10 @@ class PE(Binary):
             return
         functions = []
         export_directory = IMAGE_EXPORT_DIRECTORY.from_buffer(exportSection.raw, to_offset(dataDirectoryEntry.VirtualAddress, exportSection))
-        name = get_str(exportSection.raw, to_offset(export_directory.Name, exportSection))
+        offset = to_offset(export_directory.Name, exportSection)
+
+        checkOffset(offset, exportSection)
+        name = get_str(exportSection.raw, offset)
 
         offsetOfNames = to_offset(export_directory.AddressOfNames, exportSection)
         offsetOfAddress = to_offset(export_directory.AddressOfFunctions, exportSection)
@@ -575,6 +578,7 @@ class PE(Binary):
             name_address = c_uint.from_buffer(exportSection.raw, offsetOfNames).value
             name_offset = to_offset(name_address, exportSection)
 
+            checkOffset(name_offset, exportSection)
             func_name = get_str(exportSection.raw, name_offset)
             ordinal = c_ushort.from_buffer(exportSection.raw, offsetOfNameOrdinals).value
             func_addr = c_uint.from_buffer(exportSection.raw, offsetOfAddress).value
@@ -603,6 +607,8 @@ class PE(Binary):
                 break
             else:
                 nameOffset = to_offset(import_descriptor.Name, importSection)
+
+                checkOffset(nameOffset, importSection)
                 dllName = get_str(importSection.raw, nameOffset)
 
                 import_name_table =  self.__parseThunks(import_descriptor.OriginalFirstThunk, importSection)
@@ -677,6 +683,8 @@ class PE(Binary):
             thunk.ordinal = thunk.header.AddressOfData & 0x0fffffff
         else:
             ibn = IMAGE_IMPORT_BY_NAME.from_buffer(importSection.raw, offset)
+
+            checkOffset(offset+2, importSection)
             name = get_str(importSection.raw, offset+2)
             thunk.importByName = ImportByNameData(header=ibn, hint=ibn.Hint, name=name)
 
