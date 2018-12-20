@@ -20,7 +20,7 @@ def print_section_information(pe_file):
         print(section.name, '\t' ,hex(section.header.VirtualAddress))
         # get referenced bytes
         # as bytearray
-        # section.bytes 
+        # section.bytes
         # as c_ubyte_array
         # section.raw
 
@@ -85,6 +85,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
