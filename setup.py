@@ -18,7 +18,7 @@ setup(
     version=version,
     description=package_description,
     packages=valid_packages,
-    license="GPLv2",
+    license="BSD",
     author="Sascha Schirra",
     author_email="sashs@scoding.de",
     url="https://scoding.de/filebytes-introduction/",
@@ -26,7 +26,7 @@ setup(
         'Topic :: Security',
         'Environment :: Console',
         'Operating System :: OS Independent',
-        'License :: OSI Approved :: GNU General Public License v2 (GPLv2)',
+        'License :: OSI Approved :: BSD 3 Clause License',
         'Programming Language :: Python',
         'Intended Audience :: Developers'
     ]
