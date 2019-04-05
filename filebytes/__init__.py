@@ -28,4 +28,4 @@
 
 
 __all__ = ['elf','pe','mach_o']
-VERSION = '0.9.19'
+VERSION = '0.9.20'
