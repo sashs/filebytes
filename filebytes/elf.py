@@ -876,7 +876,7 @@ class ELF(Binary):
 
     @property
     def imageBase(self):
-        return self.segments[0].header.p_vaddr - self.segments[0].header.p_offset
+        return self.segments[0].header.p_vaddr - self.segments[0].header.p_offset if len(self.segments) > 0 else 0
 
     def _getSuitableClasses(self, data):
         """Returns the class which holds the suitable classes for the loaded file"""
