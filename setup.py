@@ -1,8 +1,8 @@
 from setuptools import setup
 import ast
-from pathlib import Path
-
-currentDir = Path(__file__).parent
+import os
+currentDir = os.path.dirname(os.path.abspath(__file__))
+#currentDir = Path(__file__).parent
 
 def extractMetaInfo(src):
     info = {}
@@ -12,6 +12,11 @@ def extractMetaInfo(src):
             info[e.targets[0].id] = e.value.s
     return info
 
-version = extractMetaInfo((currentDir / "filebytes" / "__init__.py").read_text())["VERSION"]
+text = ''
+with open(currentDir  +os.path.sep+"filebytes"+ os.path.sep+"__init__.py") as f:
+    text = f.read()
+
+version = extractMetaInfo(text)["VERSION"]
+
 
 setup(version=version)
