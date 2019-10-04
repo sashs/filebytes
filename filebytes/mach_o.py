@@ -299,6 +299,23 @@ class LSB_64(object):
     MachHeader = LSB_64_MachHeader
 
 
+############################# Fat/Universal ###########################
+
+class FatHeader(BigEndianStructure):
+    _pack_ = 4
+    _fields_ = [('magic', c_uint),
+                ('nfat_arch', c_uint)
+    ]
+
+class FatArch(BigEndianStructure):
+    _pack_ = 4
+    _fields_ = [('cputype', c_uint),
+                ('cpusubtype', c_uint),
+                ('offset', c_uint),
+                ('size', c_uint),
+                ('align', c_uint)
+    ]
+
 ############################### Container #############################
 
 
@@ -345,6 +362,10 @@ class MachO(Binary):
     def __init__(self, fileName, fileContent=None):
         super(MachO, self).__init__(fileName, fileContent)
 
+        self.__fatArches = self._tryParseFat(self._bytes)
+        if self.__fatArches:
+            return
+
         self.__classes = self._getSuitableClasses(self._bytes)
         if not self.__classes:
             raise BinaryError('Bad architecture')
@@ -358,10 +379,21 @@ class MachO(Binary):
 
     @property
     def machHeader(self):
+        assert not self.__fatArches
         return self.__machHeader
 
     @property
+    def isFat(self):
+        return self.__fatArches is not None
+
+    @property
+    def fatArches(self):
+        assert self.__fatArches
+        return self.__fatArches
+
+    @property
     def loadCommands(self):
+        assert not self.__fatArches
         return self.__loadCommands
 
     @property
@@ -389,6 +421,26 @@ class MachO(Binary):
             classes = LSB_64
 
         return classes
+
+    def _tryParseFat(self, data):
+        header = FatHeader.from_buffer(data)
+        if header.magic != 0xcafebabe:
+            return None
+
+        offset = sizeof(FatHeader)
+        arches = []
+
+        for i in range(header.nfat_arch):
+            arch = FatArch.from_buffer(bytearray(data[offset:]))
+            cputype = CpuType[arch.cputype]
+
+            thin_data = bytearray(data[arch.offset : arch.offset+arch.size])
+            thin = MachO('{}.{}'.format(self.fileName, cputype), thin_data)
+            arches.append(thin)
+
+            offset += sizeof(FatArch)
+
+        return arches
 
     def _parseMachHeader(self, data):
         header = self._classes.MachHeader.from_buffer(data)
@@ -476,4 +528,13 @@ class MachO(Binary):
     def isSupportedContent(cls, fileContent):
         """Returns if the files are valid for this filetype"""
         magic = bytearray(fileContent)[:4]
-        return magic == p('>I', 0xfeedface) or magic == p('>I', 0xfeedfacf) or magic == p('<I', 0xfeedface) or magic == p('<I', 0xfeedfacf)
+        magics = (
+            p('>I', 0xfeedface),
+            p('>I', 0xfeedfacf),
+            p('>I', 0xcafebabe),
+
+            p('<I', 0xfeedface),
+            p('<I', 0xfeedfacf),
+            p('<I', 0xcafebabe),
+        )
+        return magic in magics

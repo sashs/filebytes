@@ -41,8 +41,12 @@ class Container(object):
 
 class Binary(object):
     def __init__(self, fileName, fileContent=None):
-
-        self._bytes = to_ubyte_array(fileContent) if fileContent else self._readFile(fileName)
+        if fileContent:
+            if type(fileContent[0]) != int:
+                fileContent = to_ubyte_array(fileContent)
+            self._bytes = fileContent
+        else:
+            self._bytes = self._readFile(fileName)
         if not self.__class__.isSupportedContent(self._bytes):
             raise BinaryError('Not a suitable filetype')
 
