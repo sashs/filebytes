@@ -32,6 +32,19 @@ from .binary import *
 from binascii import hexlify
 ############# MachO General ######################
 
+class MH(Enum):
+    OBJECT = 0x1
+    EXECUTE = 0x2
+    FVMLIB = 0x3
+    CORE = 0x4
+    PRELOAD = 0x5
+    DYLIB = 0x6
+    DYLINKER = 0x7
+    BUNDLE = 0x8
+    DYLIB_STUB = 0x9
+    DSYM = 0xa
+    KEXT_BUNDLE = 0xb
+
 class VM_PROT(Enum):
     READ = 0x1
     WRITE = 0x2
@@ -519,8 +532,13 @@ class MachO(Binary):
             else:
                 offset += sizeof(self._classes.Section)
 
-            raw = (c_ubyte * sec.size).from_buffer(data, sec.offset)
-            sections.append(SectionData(header=sec, name=sec.sectname.decode('ASCII'),bytes=bytearray(raw), raw=raw))
+            if self.machHeader.header.filetype != MH.DSYM or segment.segname == "__DWARF":
+                raw = bytearray((c_ubyte * sec.size).from_buffer(data, sec.offset))
+                bytes = bytearray(raw)
+            else:
+                raw = None
+                bytes = None
+            sections.append(SectionData(header=sec, name=sec.sectname.decode('ASCII'), bytes=bytes, raw=raw))
 
         return sections
 
