@@ -533,7 +533,7 @@ class MachO(Binary):
                 offset += sizeof(self._classes.Section)
 
             if self.machHeader.header.filetype != MH.DSYM or segment.segname == "__DWARF":
-                raw = bytearray((c_ubyte * sec.size).from_buffer(data, sec.offset))
+                raw = (c_ubyte * sec.size).from_buffer(data, sec.offset)
                 bytes = bytearray(raw)
             else:
                 raw = None
