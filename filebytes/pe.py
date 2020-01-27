@@ -520,6 +520,8 @@ class PE(Binary):
         offset = optional_header_offset + imageNtHeaders.header.FileHeader.SizeOfOptionalHeader  # start reading behind the dos- and ntheaders
 
         image_section_header_size = sizeof(IMAGE_SECTION_HEADER)
+        IMAGE_SIZEOF_SYMBOL = 18
+        strtable_offset = imageNtHeaders.header.FileHeader.PointerToSymbolTable + IMAGE_SIZEOF_SYMBOL * imageNtHeaders.header.FileHeader.NumberOfSymbols
 
         for sectionNo in range(imageNtHeaders.header.FileHeader.NumberOfSections):
             ishdr = IMAGE_SECTION_HEADER.from_buffer(data, offset)
@@ -532,7 +534,16 @@ class PE(Binary):
                 raw = (c_ubyte * size).from_buffer(data, ishdr.PointerToRawData)
                 bytes_ = bytearray(raw)
 
-            sections.append(SectionData(header=ishdr, name=ishdr.Name.decode('ASCII', errors='ignore'), bytes=bytes_, raw=raw))
+            secname = ishdr.Name.decode('ASCII', errors='ignore')
+            if secname.startswith('/'):
+                name_offset = int(secname[1:]) + strtable_offset
+                s = bytearray()
+                while self._bytes[name_offset] != 0:
+                    s.append(self._bytes[name_offset])
+                    name_offset += 1
+                secname = bytes(s).decode('ASCII', errors='ignore')
+
+            sections.append(SectionData(header=ishdr, name=secname, bytes=bytes_, raw=raw))
 
             offset += image_section_header_size
 
