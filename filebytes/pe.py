@@ -49,6 +49,7 @@ class IMAGE_FILE_MACHINE(Enum):
     POWERPCFP = 0x1f1
     THUMB = 0x1c2
     WCEMIPSV2 = 0x169
+    ARM64 = 0xaa64    
 
 class IMAGE_SCN(Enum):
     TYPE_NO_PAD = 0x00000008
