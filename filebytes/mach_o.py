@@ -79,6 +79,18 @@ class CpuType(Enum):
     S_ATTR_SOME_INSTRUCTIONS = 0x400
     S_ATTR_PURE_INSTRUCTIONS = 0x80000000
 
+class CpuSubTypeARM(Enum):
+    ALL = 0
+    V4T = 5
+    V6 = 6
+    V5 = 7
+    XSCALE = 8
+    V7 = 9
+    V7S = 11
+    V7K = 12
+    V6M = 14
+    V7M = 15
+    V7EM = 16
 
 class SubTypeFlags(Enum):
     MASK = 0xff000000
