@@ -92,6 +92,11 @@ class CpuSubTypeARM(Enum):
     V7M = 15
     V7EM = 16
 
+class CPUSubTypeARM64(Enum):
+    ALL = 0
+    V8 = 1
+    E = 2    
+
 class SubTypeFlags(Enum):
     MASK = 0xff000000
     LIB64 = 0x80000000
