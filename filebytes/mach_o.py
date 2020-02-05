@@ -92,7 +92,7 @@ class CpuSubTypeARM(Enum):
     V7M = 15
     V7EM = 16
 
-class CPUSubTypeARM64(Enum):
+class CpuSubTypeARM64(Enum):
     ALL = 0
     V8 = 1
     E = 2    
