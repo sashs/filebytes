@@ -42,7 +42,7 @@ class Container(object):
 class Binary(object):
     def __init__(self, fileName, fileContent=None):
         if fileContent:
-            if type(fileContent[0]) != int:
+            if type(fileContent) == bytes:
                 fileContent = to_ubyte_array(fileContent)
             self._bytes = fileContent
         else:
