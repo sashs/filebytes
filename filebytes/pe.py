@@ -172,13 +172,6 @@ class IMAGE_IMPORT_BY_NAME(Structure):
                 ('Name', c_char)]
 
 
-class IMAGE_THUNK_DATA(Union):
-    _fields_ = [('ForwarderString', c_uint),
-                ('Function', c_uint),
-                ('Ordinal', c_uint),
-                ('AddressOfData', c_uint)]
-
-
 class IMAGE_IMPORT_DESCRIPTOR(Structure):
     _fields_ = [('OriginalFirstThunk', c_uint),
                 ('TimeDateStamp', c_uint),
@@ -244,9 +237,16 @@ class PE32_IMAGE_NT_HEADERS(Structure):
     _fields_ = [('Signature', c_char * 4),
                 ('FileHeader', IMAGE_FILE_HEADER),
                 ('OptionalHeader', IMAGE_OPTIONAL_HEADER)]
+    
+class PE32_IMAGE_THUNK_DATA(Union):
+    _fields_ = [('ForwarderString', c_uint),
+                ('Function', c_uint),
+                ('Ordinal', c_uint),
+                ('AddressOfData', c_uint)]
 
 class PE32(object):
     IMAGE_NT_HEADERS = PE32_IMAGE_NT_HEADERS
+    IMAGE_THUNK_DATA = PE32_IMAGE_THUNK_DATA
 
 
 class IMAGE_LOAD_CONFIG_DIRECTORY32(Structure):
@@ -316,9 +316,17 @@ class PE64_IMAGE_NT_HEADERS(Structure):
     _fields_ = [('Signature', c_char * 4),
                 ('FileHeader', IMAGE_FILE_HEADER),
                 ('OptionalHeader', IMAGE_OPTIONAL_HEADER_PE32_PLUS)]
+    
+class PE64_IMAGE_THUNK_DATA(Union):
+    _fields_ = [('ForwarderString', c_ulonglong),
+                ('Function', c_ulonglong),
+                ('Ordinal', c_ulonglong),
+                ('AddressOfData', c_ulonglong)]
+
 
 class PE64(object):
     IMAGE_NT_HEADERS = PE64_IMAGE_NT_HEADERS
+    IMAGE_THUNK_DATA = PE64_IMAGE_THUNK_DATA
 
 
 class IMAGE_LOAD_CONFIG_DIRECTORY64(Structure):
@@ -489,10 +497,10 @@ class PE(Binary):
         classes = None
         machine = IMAGE_FILE_MACHINE[c_ushort.from_buffer(data,imageDosHeader.header.e_lfanew+4).value]
 
-        if machine == IMAGE_FILE_MACHINE.I386:
-            classes = PE32
-        elif machine == IMAGE_FILE_MACHINE.AMD64:
+        if machine in (IMAGE_FILE_MACHINE.AMD64, IMAGE_FILE_MACHINE.ARM64, IMAGE_FILE_MACHINE.IA64):
             classes = PE64
+        else:
+            classes = PE32
 
         return classes
 
@@ -634,7 +642,7 @@ class PE(Binary):
                 dllName = get_str(importSection.raw, nameOffset)
 
                 import_name_table =  self.__parseThunks(import_descriptor.OriginalFirstThunk, importSection)
-                import_address_table =  self.__parseThunks(import_descriptor.FirstThunk, importSection)
+                import_address_table =  self.__parseThunks(import_descriptor.FirstThunk, self._getSectionByRVA(import_descriptor.FirstThunk))
 
                 import_descriptors.append(ImportDescriptorData(header=import_descriptor, dllName=dllName, importNameTable=import_name_table, importAddressTable=import_address_table))
             offset += sizeof(IMAGE_IMPORT_DESCRIPTOR)
@@ -686,29 +694,28 @@ class PE(Binary):
         offset = to_offset(thunkRVA, importSection)
         table_offset = 0
         thunks = []
+        IMAGE_THUNK_DATA = self._classes.IMAGE_THUNK_DATA
+        thunkSize = sizeof(IMAGE_THUNK_DATA)
+        ordinalMask = 1 << (thunkSize * 8 - 1)
         while True:
             thunk = IMAGE_THUNK_DATA.from_buffer(importSection.raw, offset)
-            offset += sizeof(IMAGE_THUNK_DATA)
+            offset += thunkSize
             if thunk.Ordinal == 0:
                 break
-            thunkData = ThunkData(header=thunk, rva=table_offset+thunkRVA,ordinal=None, importByName=None)
-            if to_offset(thunk.AddressOfData, importSection) > 0 and to_offset(thunk.AddressOfData, importSection) < len(self._bytes):
-                self.__parseThunkData(thunkData, importSection)
+            thunkData = ThunkData(header=thunk, rva=table_offset+thunkRVA, ordinal=None, importByName=None)
+            if thunk.Ordinal & ordinalMask != 0:
+                thunkData.ordinal = thunk.header.Ordinal & 0xffff
+            else:
+                nameSection = self._getSectionByRVA(thunk.AddressOfData)
+                nameOffset = to_offset(thunk.AddressOfData, nameSection)
+                ibn = IMAGE_IMPORT_BY_NAME.from_buffer(nameSection.raw, nameOffset)
+
+                checkOffset(nameOffset+2, nameSection)
+                name = get_str(nameSection.raw, nameOffset+2)
+                thunkData.importByName = ImportByNameData(header=ibn, hint=ibn.Hint, name=name)
             thunks.append(thunkData)
             table_offset += 4
         return thunks
-
-    def __parseThunkData(self, thunk,importSection):
-        """Parses the data of a thunk and sets the data"""
-        offset = to_offset(thunk.header.AddressOfData, importSection)
-        if 0xf0000000 & thunk.header.AddressOfData == 0x80000000:
-            thunk.ordinal = thunk.header.AddressOfData & 0x0fffffff
-        else:
-            ibn = IMAGE_IMPORT_BY_NAME.from_buffer(importSection.raw, offset)
-
-            checkOffset(offset+2, importSection)
-            name = get_str(importSection.raw, offset+2)
-            thunk.importByName = ImportByNameData(header=ibn, hint=ibn.Hint, name=name)
 
     @classmethod
     def isSupportedContent(cls, fileContent):
