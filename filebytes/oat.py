@@ -86,6 +86,7 @@ class OatHeader(Structure):
 
 class OatClass(Structure):
     _pack_ = 1
+    _layout_ = 'ms'
     _fields_ = [('status', c_ushort),
                 ('type', c_ushort),
                 ('methodsPointer', c_uint)
@@ -94,6 +95,7 @@ class OatClass(Structure):
 def create_oat_class_with_bitmap_class(size):
     class OatClassWithBitmap(Structure):
         _pack_ = 1
+        _layout_ = 'ms'
         _fields_ = [('status', c_ushort),
                     ('type', c_ushort),
                     ('bitmapSize', c_uint),
@@ -106,6 +108,7 @@ def create_oat_class_with_bitmap_class(size):
 def create_oat_dex_file_class(size):
     class OatDexFileHeader(Structure):
         _pack_ = 1
+        _layout_ = 'ms'
         _fields_ = [('dexFileLocationSize', c_uint),
                     ('dexFileLocation', c_char*size),
                     ('dexFileChecksum', c_uint),

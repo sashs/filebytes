@@ -181,22 +181,26 @@ class S_ATTR(Enum):
 
 class LcStr(Union):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('offset', c_uint)]
 
 class LoadCommand(LittleEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint)]
 
 
 class UuidCommand(LittleEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('uuid', c_ubyte * 16)]
 
 class TwoLevelHintsCommand(LittleEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('offset', c_uint),
@@ -204,11 +208,13 @@ class TwoLevelHintsCommand(LittleEndianStructure):
 
 class TwoLevelHint(LittleEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('isub_image', c_uint),
                 ('itoc', c_uint)]
 
 class Dylib(LittleEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('name', LcStr),
                 ('timestamp', c_uint),
                 ('current_version', c_uint),
@@ -217,6 +223,7 @@ class Dylib(LittleEndianStructure):
 
 class DylibCommand(LittleEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('dylib', Dylib),
@@ -224,6 +231,7 @@ class DylibCommand(LittleEndianStructure):
 
 class DylinkerCommand(LittleEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('name', LcStr)
@@ -233,6 +241,7 @@ class DylinkerCommand(LittleEndianStructure):
 
 class LSB_32_MachHeader(LittleEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('magic', c_uint),
                 ('cputype', c_uint),
                 ('cpusubtype', c_uint),
@@ -245,6 +254,7 @@ class LSB_32_MachHeader(LittleEndianStructure):
 
 class LSB_32_SegmentCommand(LittleEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('segname', c_char * 16),
@@ -260,6 +270,7 @@ class LSB_32_SegmentCommand(LittleEndianStructure):
 
 class LSB_32_Section(LittleEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('sectname', c_char * 16),
                 ('segname', c_char * 16),
                 ('addr', c_uint),
@@ -282,6 +293,7 @@ class LSB_32(object):
 
 class LSB_64_MachHeader(LittleEndianStructure):
     _pack_ = 8
+    _layout_ = 'ms'
     _fields_ = [('magic', c_uint),
                 ('cputype', c_uint),
                 ('cpusubtype', c_uint),
@@ -295,6 +307,7 @@ class LSB_64_MachHeader(LittleEndianStructure):
 
 class LSB_64_SegmentCommand(LittleEndianStructure):
     _pack_ = 8
+    _layout_ = 'ms'
     _fields_ = [('cmd', c_uint),
                 ('cmdsize', c_uint),
                 ('segname', c_char * 16),
@@ -310,6 +323,7 @@ class LSB_64_SegmentCommand(LittleEndianStructure):
 
 class LSB_64_Section(LittleEndianStructure):
     _pack_ = 8
+    _layout_ = 'ms'
     _fields_ = [('sectname', c_char * 16),
                 ('segname', c_char * 16),
                 ('addr', c_ulonglong),
@@ -333,12 +347,14 @@ class LSB_64(object):
 
 class FatHeader(BigEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('magic', c_uint),
                 ('nfat_arch', c_uint)
     ]
 
 class FatArch(BigEndianStructure):
     _pack_ = 4
+    _layout_ = 'ms'
     _fields_ = [('cputype', c_uint),
                 ('cpusubtype', c_uint),
                 ('offset', c_uint),

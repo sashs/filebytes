@@ -704,17 +704,19 @@ class PE(Binary):
                 break
             thunkData = ThunkData(header=thunk, rva=table_offset+thunkRVA, ordinal=None, importByName=None)
             if thunk.Ordinal & ordinalMask != 0:
-                thunkData.ordinal = thunk.header.Ordinal & 0xffff
+                thunkData.ordinal = thunk.Ordinal & 0xffff
             else:
+                # Bound IAT entries hold absolute addresses, not RVAs
                 nameSection = self._getSectionByRVA(thunk.AddressOfData)
-                nameOffset = to_offset(thunk.AddressOfData, nameSection)
-                ibn = IMAGE_IMPORT_BY_NAME.from_buffer(nameSection.raw, nameOffset)
+                if nameSection:
+                    nameOffset = to_offset(thunk.AddressOfData, nameSection)
+                    ibn = IMAGE_IMPORT_BY_NAME.from_buffer(nameSection.raw, nameOffset)
 
-                checkOffset(nameOffset+2, nameSection)
-                name = get_str(nameSection.raw, nameOffset+2)
-                thunkData.importByName = ImportByNameData(header=ibn, hint=ibn.Hint, name=name)
+                    checkOffset(nameOffset+2, nameSection)
+                    name = get_str(nameSection.raw, nameOffset+2)
+                    thunkData.importByName = ImportByNameData(header=ibn, hint=ibn.Hint, name=name)
             thunks.append(thunkData)
-            table_offset += 4
+            table_offset += thunkSize
         return thunks
 
     @classmethod
